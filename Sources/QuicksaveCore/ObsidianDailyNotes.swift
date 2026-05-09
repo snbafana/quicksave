@@ -45,12 +45,15 @@ public struct ObsidianDailyNotes {
 
         let dailyNoteURL = try dailyNoteURL(for: date)
 
-        let entries = captureURLs
-            .map { markdownNoteEntry(captureURL: $0, note: note, date: date) }
-            .joined()
         var contents = try String(contentsOf: dailyNoteURL, encoding: .utf8)
         contents = ensureTrailingNewline(in: contents)
-        contents += entries
+        for captureURL in captureURLs {
+            if let updated = try addNote(note, toExistingEntryFor: captureURL, in: contents) {
+                contents = updated
+            } else {
+                contents += try markdownEntry(captureURL: captureURL, note: note, dailyNoteURL: dailyNoteURL, date: date)
+            }
+        }
         try contents.write(to: dailyNoteURL, atomically: true, encoding: .utf8)
 
         return dailyNoteURL
@@ -133,10 +136,6 @@ public struct ObsidianDailyNotes {
         return "\n- \(timeString(for: date))\n\(renderedCapture)\(renderedNote)\n"
     }
 
-    private func markdownNoteEntry(captureURL: URL, note: String, date: Date) -> String {
-        "\n- \(timeString(for: date))\n  Note for `\(captureURL.lastPathComponent)`\n\(renderNote(note))\n"
-    }
-
     private func renderCapture(_ captureURL: URL, relativeTo dailyNoteURL: URL) throws -> String {
         if isTextCapture(captureURL) {
             let text = try String(contentsOf: captureURL, encoding: .utf8)
@@ -190,6 +189,80 @@ public struct ObsidianDailyNotes {
         )
         try fileManager.copyItem(at: sourceURL, to: destination)
         return destination
+    }
+
+    private func addNote(_ note: String, toExistingEntryFor captureURL: URL, in contents: String) throws -> String? {
+        let renderedNote = renderNote(note)
+        guard !renderedNote.isEmpty else {
+            return contents
+        }
+
+        let marker = try existingEntryMarker(for: captureURL)
+        guard let markerRange = contents.range(of: marker) else {
+            return nil
+        }
+
+        let beforeMarker = contents[..<markerRange.lowerBound]
+        let entryStart = beforeMarker.range(of: "\n- ", options: .backwards)?.lowerBound ?? contents.startIndex
+        let nextEntrySearchStart = contents.index(after: entryStart)
+        let entryEnd = contents[nextEntrySearchStart...].range(of: "\n- ")?.lowerBound ?? contents.endIndex
+        let entry = String(contents[entryStart..<entryEnd])
+
+        if noteExists(in: entry, note: note) {
+            return contents
+        }
+
+        let insertionIndex = insertionIndexBeforeTrailingBlankLines(
+            from: entryStart,
+            to: entryEnd,
+            in: contents
+        )
+        var updated = contents
+        updated.insert(contentsOf: renderedNote, at: insertionIndex)
+        return updated
+    }
+
+    private func insertionIndexBeforeTrailingBlankLines(
+        from entryStart: String.Index,
+        to entryEnd: String.Index,
+        in contents: String
+    ) -> String.Index {
+        var scanIndex = entryEnd
+        var trailingNewlines = 0
+        while scanIndex > entryStart {
+            let previousIndex = contents.index(before: scanIndex)
+            guard contents[previousIndex] == "\n" else {
+                break
+            }
+            trailingNewlines += 1
+            scanIndex = previousIndex
+        }
+
+        guard trailingNewlines > 1 else {
+            return entryEnd
+        }
+
+        var insertionIndex = entryEnd
+        for _ in 0..<(trailingNewlines - 1) {
+            insertionIndex = contents.index(before: insertionIndex)
+        }
+        return insertionIndex
+    }
+
+    private func existingEntryMarker(for captureURL: URL) throws -> String {
+        if isTextCapture(captureURL) {
+            let text = try String(contentsOf: captureURL, encoding: .utf8)
+            return blockquote(text)
+        }
+        return captureURL.lastPathComponent
+    }
+
+    private func noteExists(in entry: String, note: String) -> Bool {
+        let normalizedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedNote.isEmpty else {
+            return true
+        }
+        return entry.contains("  - \(normalizedNote)\n") || entry.hasSuffix("  - \(normalizedNote)")
     }
 
     private func ensureTrailingNewline(in contents: String) -> String {

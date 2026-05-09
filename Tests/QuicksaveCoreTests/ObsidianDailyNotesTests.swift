@@ -88,21 +88,38 @@ struct ObsidianDailyNotesTests {
         #expect(contents.contains("> second"))
     }
 
-    @Test func appendsNotesForEachCaptureWithoutDuplicatingCaptureBody() throws {
+    @Test func attachesNotesToExistingCaptureEntries() throws {
         let fixture = try ObsidianFixture()
         let first = fixture.root.appendingPathComponent("first.txt")
         let second = fixture.root.appendingPathComponent("second.txt")
         try "first capture body".write(to: first, atomically: true, encoding: .utf8)
         try "second capture body".write(to: second, atomically: true, encoding: .utf8)
 
+        _ = try fixture.writer.append(captureURLs: [first, second], date: fixture.date)
         let dailyNote = try fixture.writer.appendNotes(for: [first, second], note: "why this mattered", date: fixture.date)
+        _ = try fixture.writer.appendNotes(for: [first, second], note: "why this mattered", date: fixture.date)
         let contents = try String(contentsOf: dailyNote, encoding: .utf8)
 
-        #expect(contents.contains("Note for `first.txt`"))
-        #expect(contents.contains("Note for `second.txt`"))
+        #expect(!contents.contains("Note for `first.txt`"))
+        #expect(!contents.contains("Note for `second.txt`"))
+        #expect(contents.contains("> first capture body\n  - why this mattered"))
+        #expect(contents.contains("> second capture body\n  - why this mattered"))
+        #expect(contents.components(separatedBy: "first capture body").count == 2)
+        #expect(contents.components(separatedBy: "second capture body").count == 2)
+        #expect(contents.components(separatedBy: "why this mattered").count == 3)
+    }
+
+    @Test func noteFallbackIncludesCaptureWhenEntryDoesNotExist() throws {
+        let fixture = try ObsidianFixture()
+        let capture = fixture.root.appendingPathComponent("capture.txt")
+        try "capture body".write(to: capture, atomically: true, encoding: .utf8)
+
+        let dailyNote = try fixture.writer.appendNotes(for: [capture], note: "why this mattered", date: fixture.date)
+        let contents = try String(contentsOf: dailyNote, encoding: .utf8)
+
+        #expect(!contents.contains("Note for `capture.txt`"))
+        #expect(contents.contains("> capture body"))
         #expect(contents.contains("  - why this mattered"))
-        #expect(!contents.contains("first capture body"))
-        #expect(!contents.contains("second capture body"))
     }
 
     @Test func usesDailyNoteResolverWhenDailyNoteIsMissing() throws {
