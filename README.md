@@ -33,6 +33,7 @@ Capture output examples:
 Supported clipboard content:
 
 - plain text and URLs -> `.txt`
+- copied HTML/RTF text with links -> `.md`
 - copied images -> `.png`
 - direct PDF pasteboard data -> `.pdf`
 - copied Finder files and folders -> copied into the inbox with a timestamp prefix
@@ -111,21 +112,18 @@ obsidian daily:path
 obsidian daily
 ```
 
-After the expected file exists, Quicksave appends markdown directly. This keeps daily-note creation under Obsidian's Daily notes plugin and template settings, while still writing assets into the configured daily-note folder.
+After Obsidian reports the daily-note path, Quicksave appends markdown directly to that note. This keeps daily-note creation and note location under Obsidian's Daily notes plugin and template settings.
 
-Default daily-note directory:
+Fallback daily-note directory when the Obsidian CLI is not used:
 
 ```text
 ~/Documents/Obsidian-Vault/Zettelkatsen
 ```
 
-Daily note names use the same format as `05-09-2026.md`.
+Your current Obsidian CLI decides the live daily note path. Check it with:
 
-Set Obsidian's Daily notes plugin to the same folder and format:
-
-```text
-New file location: Zettelkatsen
-Date format: MM-dd-yyyy
+```bash
+obsidian daily:path
 ```
 
 Append a specific capture:
@@ -142,14 +140,14 @@ Append the newest capture from the inbox, automatically using a matching `.note.
 swift run quicksave obsidian append-latest
 ```
 
-Override the daily-note directory:
+For CLI-only tests or one-off exports, bypass Obsidian's daily-note setting and write to a specific folder:
 
 ```bash
 swift run quicksave obsidian append-latest \
   --daily-notes-dir /Users/snbafana/Documents/Obsidian-Vault/Zettelkatsen
 ```
 
-Text captures are appended as blockquotes. Images are copied into `quicksave-assets/` and embedded with markdown image syntax. Other files are copied into `quicksave-assets/` and linked. Capture notes are appended as note entries tied to the capture filename.
+Text and Markdown captures are appended as blockquotes, so copied links like `[example](https://example.com)` stay clickable. Images are copied into `quicksave-assets/` and embedded with markdown image syntax. Other files are copied into `quicksave-assets/` and linked. Capture notes are appended as note entries tied to the capture filename.
 
 If the Obsidian CLI binary is not named `obsidian`, set:
 

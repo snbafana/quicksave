@@ -35,7 +35,12 @@ struct QuicksaveCLI {
         }
 
         let options = Options(Array(arguments.dropFirst()))
-        let dailyNotes = ObsidianDailyNotes(dailyNotesDirectory: options.dailyNotesDirectory)
+        let dailyNotes = ObsidianDailyNotes(
+            dailyNotesDirectory: options.dailyNotesDirectory,
+            resolveDailyNote: options.usesDailyNotesDirectoryOverride
+                ? ObsidianDailyNotes.fileSystemDailyNoteResolver()
+                : ObsidianCLI.resolveOrCreateDailyNote
+        )
 
         switch command {
         case "append":
@@ -45,8 +50,7 @@ struct QuicksaveCLI {
             let captureURL = try latestCapture(in: options.inboxDirectory)
             try append(captureURL, options: options, dailyNotes: dailyNotes)
         case "today":
-            let dailyNoteURL = options.dailyNotesDirectory
-                .appendingPathComponent("\(ObsidianDailyNotes.dailyNoteName(for: Date())).md")
+            let dailyNoteURL = try dailyNotes.dailyNoteURL()
             print(dailyNoteURL.path)
         case "help", "--help", "-h":
             printObsidianUsage()
@@ -120,6 +124,10 @@ private struct Options {
             return expandedURL(path, isDirectory: true)
         }
         return ObsidianDailyNotes.defaultDailyNotesURL()
+    }
+
+    var usesDailyNotesDirectoryOverride: Bool {
+        values["--daily-notes-dir"] != nil
     }
 
     var inboxDirectory: URL {

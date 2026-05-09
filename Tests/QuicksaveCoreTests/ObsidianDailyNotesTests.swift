@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import QuicksaveCore
@@ -29,6 +30,35 @@ struct ObsidianDailyNotesTests {
 
         #expect(FileManager.default.fileExists(atPath: fixture.dailyNotes.appendingPathComponent("quicksave-assets/clip image.png").path))
         #expect(contents.contains("![clip image.png](quicksave-assets/clip%20image.png)"))
+    }
+
+    @Test func appendsMarkdownTextCaptureAsBlockquote() throws {
+        let fixture = try ObsidianFixture()
+        let capture = fixture.root.appendingPathComponent("linked-text.md")
+        try "Read [example](https://example.com) now".write(to: capture, atomically: true, encoding: .utf8)
+
+        let dailyNote = try fixture.writer.append(captureURL: capture, date: fixture.date)
+        let contents = try String(contentsOf: dailyNote, encoding: .utf8)
+
+        #expect(contents.contains("> Read [example](https://example.com) now"))
+    }
+
+    @Test func capturedImageCanBeSavedAndEmbeddedInDailyNote() throws {
+        let fixture = try ObsidianFixture()
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+        pasteboard.writeObjects([makeObsidianTestImage()])
+
+        let capture = try #require(
+            try ClipboardCapture().captureClipboard(to: fixture.root.appendingPathComponent("inbox", isDirectory: true), pasteboard: pasteboard).firstSavedURL
+        )
+        let dailyNote = try fixture.writer.append(captureURL: capture, date: fixture.date)
+        let contents = try String(contentsOf: dailyNote, encoding: .utf8)
+        let embeddedImage = fixture.dailyNotes.appendingPathComponent("quicksave-assets/\(capture.lastPathComponent)")
+
+        #expect(capture.pathExtension == "png")
+        #expect(FileManager.default.fileExists(atPath: embeddedImage.path))
+        #expect(contents.contains("![\(capture.lastPathComponent)](quicksave-assets/\(capture.lastPathComponent))"))
     }
 
     @Test func copiesFilesToAssetsAndAddsMarkdownLink() throws {
@@ -75,17 +105,17 @@ struct ObsidianDailyNotesTests {
         #expect(!contents.contains("second capture body"))
     }
 
-    @Test func usesDailyNoteCreatorWhenDailyNoteIsMissing() throws {
+    @Test func usesDailyNoteResolverWhenDailyNoteIsMissing() throws {
         let fixture = try ObsidianFixture()
         let capture = fixture.root.appendingPathComponent("capture.txt")
         try "created through injected cli".write(to: capture, atomically: true, encoding: .utf8)
 
         _ = try fixture.writer.append(captureURL: capture, date: fixture.date)
 
-        #expect(fixture.createdDailyNoteCount == 1)
+        #expect(fixture.resolvedDailyNoteCount == 1)
     }
 
-    @Test func doesNotUseDailyNoteCreatorWhenDailyNoteExists() throws {
+    @Test func usesDailyNoteResolverWhenDailyNoteExists() throws {
         let fixture = try ObsidianFixture()
         let capture = fixture.root.appendingPathComponent("capture.txt")
         let dailyNote = fixture.dailyNotes.appendingPathComponent("05-09-2026.md")
@@ -94,24 +124,29 @@ struct ObsidianDailyNotesTests {
 
         _ = try fixture.writer.append(captureURL: capture, date: fixture.date)
 
-        #expect(fixture.createdDailyNoteCount == 0)
+        #expect(fixture.resolvedDailyNoteCount == 1)
     }
 
-    @Test func obsidianCLICreatorUsesDailyPathThenDaily() throws {
+    @Test func obsidianCLIResolverUsesDailyPathVaultThenDaily() throws {
         let fixture = try ObsidianFixture()
         let expectedDailyNote = fixture.dailyNotes.appendingPathComponent("05-09-2026.md")
+        let cliDailyNote = fixture.root.appendingPathComponent("Obsidian-Vault/2026-05-09.md")
         let log = fixture.root.appendingPathComponent("obsidian-cli.log")
         let fakeCLI = fixture.root.appendingPathComponent("fake-obsidian")
         let script = """
         #!/bin/sh
         echo "$1" >> \(shellQuote(log.path))
         if [ "$1" = "daily:path" ]; then
-          echo "Zettelkatsen/05-09-2026.md"
+          echo "2026-05-09.md"
+          exit 0
+        fi
+        if [ "$1" = "vault" ]; then
+          echo \(shellQuote(fixture.root.appendingPathComponent("Obsidian-Vault", isDirectory: true).path))
           exit 0
         fi
         if [ "$1" = "daily" ]; then
-          mkdir -p \(shellQuote(fixture.dailyNotes.path))
-          printf '# 05-09-2026\\n' > \(shellQuote(expectedDailyNote.path))
+          mkdir -p \(shellQuote(cliDailyNote.deletingLastPathComponent().path))
+          printf '# 2026-05-09\\n' > \(shellQuote(cliDailyNote.path))
           exit 0
         fi
         exit 1
@@ -119,11 +154,16 @@ struct ObsidianDailyNotesTests {
         try script.write(to: fakeCLI, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCLI.path)
 
-        try ObsidianCLI.createDailyNote(at: expectedDailyNote, date: fixture.date, executable: fakeCLI.path)
+        let resolved = try ObsidianCLI.resolveOrCreateDailyNote(
+            expectedURL: expectedDailyNote,
+            date: fixture.date,
+            executable: fakeCLI.path
+        )
 
         let calls = try String(contentsOf: log, encoding: .utf8)
-        #expect(calls == "daily:path\ndaily\n")
-        #expect(FileManager.default.fileExists(atPath: expectedDailyNote.path))
+        #expect(calls == "daily:path\nvault\ndaily\n")
+        #expect(resolved == cliDailyNote)
+        #expect(FileManager.default.fileExists(atPath: cliDailyNote.path))
     }
 }
 
@@ -132,10 +172,10 @@ private final class ObsidianFixture {
     let dailyNotes: URL
     let writer: ObsidianDailyNotes
     let date: Date
-    private let createdDailyNotes = CountBox()
+    private let resolvedDailyNotes = CountBox()
 
-    var createdDailyNoteCount: Int {
-        createdDailyNotes.value
+    var resolvedDailyNoteCount: Int {
+        resolvedDailyNotes.value
     }
 
     init() throws {
@@ -157,11 +197,14 @@ private final class ObsidianFixture {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: dailyNotes, withIntermediateDirectories: true)
 
-        let createdDailyNotes = createdDailyNotes
+        let resolvedDailyNotes = resolvedDailyNotes
         writer = ObsidianDailyNotes(dailyNotesDirectory: dailyNotes) { url, date in
-            createdDailyNotes.value += 1
-            let title = ObsidianDailyNotes.dailyNoteName(for: date)
-            try "# \(title)\n".write(to: url, atomically: true, encoding: .utf8)
+            resolvedDailyNotes.value += 1
+            if !FileManager.default.fileExists(atPath: url.path) {
+                let title = ObsidianDailyNotes.dailyNoteName(for: date)
+                try "# \(title)\n".write(to: url, atomically: true, encoding: .utf8)
+            }
+            return url
         }
     }
 }
@@ -172,4 +215,13 @@ private final class CountBox {
 
 private func shellQuote(_ value: String) -> String {
     "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+}
+
+private func makeObsidianTestImage() -> NSImage {
+    let image = NSImage(size: NSSize(width: 12, height: 12))
+    image.lockFocus()
+    NSColor.systemGreen.setFill()
+    NSBezierPath(rect: NSRect(x: 0, y: 0, width: 12, height: 12)).fill()
+    image.unlockFocus()
+    return image
 }

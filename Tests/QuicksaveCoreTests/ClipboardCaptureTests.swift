@@ -51,6 +51,23 @@ struct ClipboardCaptureTests {
         #expect(try String(contentsOf: savedURL, encoding: .utf8) == "https://example.com")
     }
 
+    @Test func capturesHTMLLinksAsMarkdownFile() throws {
+        let fixture = try ClipboardFixture()
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        let item = NSPasteboardItem()
+        let html = #"Read <a href="https://example.com/path">example</a> now"#
+        item.setData(Data(html.utf8), forType: NSPasteboard.PasteboardType("public.html"))
+        item.setString("Read example now", forType: .string)
+        pasteboard.clearContents()
+        pasteboard.writeObjects([item])
+
+        let result = try ClipboardCapture().captureClipboard(to: fixture.inboxURL, pasteboard: pasteboard)
+        let savedURL = try #require(result.firstSavedURL)
+
+        #expect(savedURL.pathExtension == "md")
+        #expect(try String(contentsOf: savedURL, encoding: .utf8) == "Read [example](https://example.com/path) now")
+    }
+
     @Test func capturesImageAsPNG() throws {
         let fixture = try ClipboardFixture()
         let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))

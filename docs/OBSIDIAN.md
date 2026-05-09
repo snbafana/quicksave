@@ -9,21 +9,21 @@ obsidian daily:path
 obsidian daily
 ```
 
-That keeps creation under Obsidian's Daily notes plugin instead of hardcoding an empty markdown file in Quicksave. The Obsidian app/CLI must be installed and the Daily notes plugin should point at the same folder and date format used below.
+That keeps creation, location, and date format under Obsidian's Daily notes plugin instead of hardcoding an empty markdown file in Quicksave.
 
-Target daily-note folder:
+The live daily note is whatever Obsidian reports:
 
-```text
-/Users/snbafana/Documents/Obsidian-Vault/Zettelkatsen
+```bash
+obsidian daily:path
 ```
 
-Daily note filenames:
+For example, if Obsidian reports `2026-05-09.md`, Quicksave appends to:
 
 ```text
-MM-dd-yyyy.md
+/Users/snbafana/Documents/Obsidian-Vault/2026-05-09.md
 ```
 
-Obsidian Daily notes settings should match:
+If you want captures under `Zettelkatsen` with names like `05-09-2026.md`, set Obsidian's Daily notes plugin to:
 
 ```text
 New file location: Zettelkatsen
@@ -85,6 +85,14 @@ Text capture:
   - user context note
 ```
 
+Rich text capture:
+
+```md
+- 12:30 PM
+  > Read [example](https://example.com) now
+  - user context note
+```
+
 Image capture:
 
 ```md
@@ -109,7 +117,7 @@ Note appended after a capture:
   - user context note
 ```
 
-Images and files are copied into:
+Images and files are copied beside the resolved daily note:
 
 ```text
 <daily-note-folder>/quicksave-assets/
@@ -117,22 +125,22 @@ Images and files are copied into:
 
 ## Configuration
 
-Default daily-note folder:
+By default, Quicksave follows Obsidian's configured daily note:
 
-```text
-~/Documents/Obsidian-Vault/Zettelkatsen
+```bash
+obsidian daily:path
 ```
 
-You can override it per command:
+For CLI-only tests or one-off exports, you can bypass Obsidian's daily-note setting and write to a specific folder:
 
 ```bash
 swift run quicksave obsidian append-latest --daily-notes-dir /path/to/daily-notes
 ```
 
-Or set an environment variable:
+The fallback folder is:
 
-```bash
-export QUICKSAVE_OBSIDIAN_DAILY_NOTES=/Users/snbafana/Documents/Obsidian-Vault/Zettelkatsen
+```text
+~/Documents/Obsidian-Vault/Zettelkatsen
 ```
 
 If the CLI binary is not available as `obsidian`, point Quicksave at it:
@@ -143,8 +151,8 @@ export QUICKSAVE_OBSIDIAN_CLI=/path/to/obsidian
 
 ## Remaining Integration Plan
 
-The current version writes to the default daily-note folder or the CLI override. The remaining polish is configuration, not capture logic:
+The current version follows the Obsidian CLI daily-note path by default. The remaining polish is configuration, not capture logic:
 
-1. Add a compact folder picker for the Obsidian daily-note directory.
-2. Store that folder in `UserDefaults`, defaulting to `/Users/snbafana/Documents/Obsidian-Vault/Zettelkatsen`.
-3. Add an optional automatic-append setting after this explicit flow feels right in daily use.
+1. Add a compact command to open Obsidian Daily Notes settings.
+2. Add a small status surface that shows the path returned by `obsidian daily:path`.
+3. Add optional app settings only if this CLI-backed default is not enough in daily use.

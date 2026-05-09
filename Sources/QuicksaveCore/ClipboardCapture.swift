@@ -5,6 +5,8 @@ public final class ClipboardCapture {
     private enum PasteboardType {
         static let pdf = NSPasteboard.PasteboardType("com.adobe.pdf")
         static let fileURL = NSPasteboard.PasteboardType("public.file-url")
+        static let html = NSPasteboard.PasteboardType("public.html")
+        static let rtf = NSPasteboard.PasteboardType("public.rtf")
         static let imageTypes: [NSPasteboard.PasteboardType] = [
             .png,
             .tiff,
@@ -71,27 +73,75 @@ public final class ClipboardCapture {
             return destination
         }
 
-        if let text = text(from: item), !text.isEmpty {
+        if let text = text(from: item), !text.value.isEmpty {
             let destination = FileNaming.uniqueURL(
                 in: inboxDirectory,
-                preferredName: "\(stem).txt",
+                preferredName: "\(stem).\(text.fileExtension)",
                 fileManager: fileManager
             )
-            try Data(text.utf8).write(to: destination, options: [.atomic])
+            try Data(text.value.utf8).write(to: destination, options: [.atomic])
             return destination
         }
 
         return nil
     }
 
-    private func text(from item: NSPasteboardItem) -> String? {
+    private func text(from item: NSPasteboardItem) -> CapturedText? {
+        if let markdown = markdownText(from: item), !markdown.isEmpty {
+            return CapturedText(value: markdown, fileExtension: "md")
+        }
         if let text = item.string(forType: .string), !text.isEmpty {
-            return text
+            return CapturedText(value: text, fileExtension: "txt")
         }
         if let url = item.string(forType: .URL), !url.isEmpty {
-            return url
+            return CapturedText(value: url, fileExtension: "txt")
         }
         return nil
+    }
+
+    private func markdownText(from item: NSPasteboardItem) -> String? {
+        if let html = item.data(forType: PasteboardType.html),
+           let attributed = attributedString(from: html, type: .html) {
+            return markdown(from: attributed)
+        }
+
+        if let rtf = item.data(forType: PasteboardType.rtf),
+           let attributed = attributedString(from: rtf, type: .rtf) {
+            return markdown(from: attributed)
+        }
+
+        return nil
+    }
+
+    private func attributedString(from data: Data, type: NSAttributedString.DocumentType) -> NSAttributedString? {
+        try? NSAttributedString(
+            data: data,
+            options: [
+                .documentType: type,
+                .characterEncoding: String.Encoding.utf8.rawValue
+            ],
+            documentAttributes: nil
+        )
+    }
+
+    private func markdown(from attributed: NSAttributedString) -> String {
+        var result = ""
+        let range = NSRange(location: 0, length: attributed.length)
+
+        attributed.enumerateAttributes(in: range) { attributes, range, _ in
+            let text = attributed.attributedSubstring(from: range).string
+            guard !text.isEmpty else {
+                return
+            }
+
+            if let link = attributes[.link] {
+                result += "[\(text)](\(link))"
+            } else {
+                result += text
+            }
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func fileURL(from item: NSPasteboardItem) -> URL? {
@@ -133,6 +183,11 @@ public final class ClipboardCapture {
         }
         return "\(timestamp)-\(String(format: "%02d", itemIndex))"
     }
+}
+
+private struct CapturedText {
+    let value: String
+    let fileExtension: String
 }
 
 public enum ClipboardCaptureError: LocalizedError {

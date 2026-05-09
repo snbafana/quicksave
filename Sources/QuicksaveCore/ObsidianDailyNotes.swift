@@ -2,20 +2,20 @@ import Foundation
 
 public struct ObsidianDailyNotes {
     public static let defaultDailyNotesPath = "~/Documents/Obsidian-Vault/Zettelkatsen"
-    public typealias DailyNoteCreator = (URL, Date) throws -> Void
+    public typealias DailyNoteResolver = (URL, Date) throws -> URL
 
     private let dailyNotesDirectory: URL
     private let fileManager: FileManager
-    private let createDailyNote: DailyNoteCreator
+    private let resolveDailyNote: DailyNoteResolver
 
     public init(
         dailyNotesDirectory: URL,
         fileManager: FileManager = .default,
-        createDailyNote: @escaping DailyNoteCreator = ObsidianCLI.createDailyNote
+        resolveDailyNote: @escaping DailyNoteResolver = ObsidianCLI.resolveOrCreateDailyNote
     ) {
         self.dailyNotesDirectory = dailyNotesDirectory
         self.fileManager = fileManager
-        self.createDailyNote = createDailyNote
+        self.resolveDailyNote = resolveDailyNote
     }
 
     public func append(captureURL: URL, note: String? = nil, date: Date = Date()) throws -> URL {
@@ -25,8 +25,7 @@ public struct ObsidianDailyNotes {
     public func append(captureURLs: [URL], note: String? = nil, date: Date = Date()) throws -> URL {
         try fileManager.createDirectory(at: dailyNotesDirectory, withIntermediateDirectories: true)
 
-        let dailyNoteURL = dailyNotesDirectory.appendingPathComponent("\(Self.dailyNoteName(for: date)).md")
-        try ensureDailyNote(at: dailyNoteURL, date: date)
+        let dailyNoteURL = try dailyNoteURL(for: date)
 
         let entries = try captureURLs
             .map { try markdownEntry(captureURL: $0, note: note, dailyNoteURL: dailyNoteURL, date: date) }
@@ -42,8 +41,7 @@ public struct ObsidianDailyNotes {
     public func appendNotes(for captureURLs: [URL], note: String, date: Date = Date()) throws -> URL {
         try fileManager.createDirectory(at: dailyNotesDirectory, withIntermediateDirectories: true)
 
-        let dailyNoteURL = dailyNotesDirectory.appendingPathComponent("\(Self.dailyNoteName(for: date)).md")
-        try ensureDailyNote(at: dailyNoteURL, date: date)
+        let dailyNoteURL = try dailyNoteURL(for: date)
 
         let entries = captureURLs
             .map { markdownNoteEntry(captureURL: $0, note: note, date: date) }
@@ -69,6 +67,22 @@ public struct ObsidianDailyNotes {
         return formatter.string(from: date)
     }
 
+    public static func fileSystemDailyNoteResolver(fileManager: FileManager = .default) -> DailyNoteResolver {
+        { expectedURL, date in
+            if !fileManager.fileExists(atPath: expectedURL.path) {
+                try fileManager.createDirectory(at: expectedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                let title = Self.dailyNoteName(for: date)
+                try "# \(title)\n".write(to: expectedURL, atomically: true, encoding: .utf8)
+            }
+            return expectedURL
+        }
+    }
+
+    public func dailyNoteURL(for date: Date = Date()) throws -> URL {
+        let expectedURL = dailyNotesDirectory.appendingPathComponent("\(Self.dailyNoteName(for: date)).md")
+        return try resolveDailyNote(expectedURL, date)
+    }
+
     private func markdownEntry(captureURL: URL, note: String?, dailyNoteURL: URL, date: Date) throws -> String {
         let renderedCapture = try renderCapture(captureURL, relativeTo: dailyNoteURL)
         let renderedNote = renderNote(note)
@@ -80,7 +94,7 @@ public struct ObsidianDailyNotes {
     }
 
     private func renderCapture(_ captureURL: URL, relativeTo dailyNoteURL: URL) throws -> String {
-        if captureURL.pathExtension.lowercased() == "txt" {
+        if isTextCapture(captureURL) {
             let text = try String(contentsOf: captureURL, encoding: .utf8)
             return blockquote(text)
         }
@@ -134,17 +148,6 @@ public struct ObsidianDailyNotes {
         return destination
     }
 
-    private func ensureDailyNote(at url: URL, date: Date) throws {
-        guard !fileManager.fileExists(atPath: url.path) else {
-            return
-        }
-
-        try createDailyNote(url, date)
-        guard fileManager.fileExists(atPath: url.path) else {
-            throw ObsidianDailyNoteError.notCreated(url.path, nil)
-        }
-    }
-
     private func ensureQuicksaveSection(in contents: String) -> String {
         let normalized = contents.hasSuffix("\n") ? contents : contents + "\n"
         if normalized.contains("\n## Quicksave\n") || normalized.hasPrefix("## Quicksave\n") {
@@ -155,6 +158,10 @@ public struct ObsidianDailyNotes {
 
     private func isImage(_ url: URL) -> Bool {
         ["png", "jpg", "jpeg", "gif", "heic", "webp"].contains(url.pathExtension.lowercased())
+    }
+
+    private func isTextCapture(_ url: URL) -> Bool {
+        ["txt", "md"].contains(url.pathExtension.lowercased())
     }
 
     private func markdownPath(from base: URL, to target: URL) -> String {
@@ -191,20 +198,45 @@ public enum ObsidianDailyNoteError: LocalizedError {
 }
 
 public enum ObsidianCLI {
-    public static func createDailyNote(at expectedURL: URL, date: Date) throws {
-        try createDailyNote(at: expectedURL, date: date, executable: configuredExecutable())
+    public static func resolveOrCreateDailyNote(expectedURL: URL, date: Date) throws -> URL {
+        try resolveOrCreateDailyNote(expectedURL: expectedURL, date: date, executable: configuredExecutable())
     }
 
-    static func createDailyNote(at expectedURL: URL, date: Date, executable: String) throws {
+    static func resolveOrCreateDailyNote(expectedURL: URL, date: Date, executable: String) throws -> URL {
         _ = date
 
-        let cliDailyPath = try run(["daily:path"], executable: executable)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let dailyNoteURL = try currentDailyNoteURL(executable: executable)
+        if FileManager.default.fileExists(atPath: dailyNoteURL.path) {
+            return dailyNoteURL
+        }
+
         _ = try run(["daily"], executable: executable)
 
-        guard FileManager.default.fileExists(atPath: expectedURL.path) else {
-            throw ObsidianDailyNoteError.notCreated(expectedURL.path, cliDailyPath)
+        guard FileManager.default.fileExists(atPath: dailyNoteURL.path) else {
+            throw ObsidianDailyNoteError.notCreated(dailyNoteURL.path, relativeDailyPath(dailyNoteURL, fallback: expectedURL))
         }
+
+        return dailyNoteURL
+    }
+
+    static func currentDailyNoteURL(executable: String = configuredExecutable()) throws -> URL {
+        let cliDailyPath = try run(["daily:path"], executable: executable)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cliDailyPath.isEmpty else {
+            throw ObsidianDailyNoteError.commandFailed("\(executable) daily:path", "empty daily note path")
+        }
+
+        if cliDailyPath.hasPrefix("/") {
+            return URL(fileURLWithPath: cliDailyPath)
+        }
+
+        let vaultPath = try run(["vault", "info=path"], executable: executable)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !vaultPath.isEmpty else {
+            throw ObsidianDailyNoteError.commandFailed("\(executable) vault info=path", "empty vault path")
+        }
+
+        return URL(fileURLWithPath: vaultPath, isDirectory: true).appendingPathComponent(cliDailyPath)
     }
 
     static func run(_ arguments: [String], executable: String = configuredExecutable()) throws -> String {
@@ -233,5 +265,14 @@ public enum ObsidianCLI {
 
     private static func configuredExecutable() -> String {
         ProcessInfo.processInfo.environment["QUICKSAVE_OBSIDIAN_CLI"] ?? "obsidian"
+    }
+
+    private static func relativeDailyPath(_ url: URL, fallback: URL) -> String {
+        let path = url.path
+        let fallbackDirectory = fallback.deletingLastPathComponent().path + "/"
+        if path.hasPrefix(fallbackDirectory) {
+            return String(path.dropFirst(fallbackDirectory.count))
+        }
+        return path
     }
 }
