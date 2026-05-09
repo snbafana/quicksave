@@ -4,17 +4,21 @@ public struct ObsidianDailyNotes {
     public static let defaultVaultPath = "~/Documents/Obsidian-Vault"
     public static let defaultDailyNotesPath = "~/Documents/Obsidian-Vault/Zettelkatsen"
     public static let defaultDailyTemplatePath = "~/Documents/Obsidian-Vault/Templates/Daily Note.md"
+    public static let defaultMediaRelativePath = "Visuals/Media"
     public typealias DailyNoteResolver = (URL, Date) throws -> URL
 
+    private let vaultDirectory: URL
     private let dailyNotesDirectory: URL
     private let fileManager: FileManager
     private let resolveDailyNote: DailyNoteResolver
 
     public init(
         dailyNotesDirectory: URL,
+        vaultDirectory: URL = defaultVaultURL(),
         fileManager: FileManager = .default,
         resolveDailyNote: DailyNoteResolver? = nil
     ) {
+        self.vaultDirectory = vaultDirectory
         self.dailyNotesDirectory = dailyNotesDirectory
         self.fileManager = fileManager
         self.resolveDailyNote = resolveDailyNote ?? Self.obsidianTemplateDailyNoteResolver(fileManager: fileManager)
@@ -142,14 +146,14 @@ public struct ObsidianDailyNotes {
             return blockquote(text)
         }
 
-        let assetURL = try copyAsset(captureURL, relativeTo: dailyNoteURL)
-        let path = markdownPath(from: dailyNoteURL.deletingLastPathComponent(), to: assetURL)
-        let label = assetURL.lastPathComponent
-
-        if isImage(assetURL) {
-            return "  ![\(label)](\(path))\n"
+        if isImage(captureURL) {
+            let imageURL = try copyImageAsset(captureURL)
+            return "  ![[\(imageURL.lastPathComponent)]]\n"
         }
 
+        let assetURL = try copyLinkedFile(captureURL, relativeTo: dailyNoteURL)
+        let path = markdownPath(from: dailyNoteURL.deletingLastPathComponent(), to: assetURL)
+        let label = assetURL.lastPathComponent
         return "  [\(label)](\(path))\n"
     }
 
@@ -178,8 +182,17 @@ public struct ObsidianDailyNotes {
         return "  - \(first)\n\(rest)\n"
     }
 
-    private func copyAsset(_ sourceURL: URL, relativeTo dailyNoteURL: URL) throws -> URL {
+    private func copyImageAsset(_ sourceURL: URL) throws -> URL {
+        let mediaDirectory = vaultDirectory.appendingPathComponent(Self.defaultMediaRelativePath, isDirectory: true)
+        return try copyAsset(sourceURL, to: mediaDirectory)
+    }
+
+    private func copyLinkedFile(_ sourceURL: URL, relativeTo dailyNoteURL: URL) throws -> URL {
         let assetsDirectory = dailyNoteURL.deletingLastPathComponent().appendingPathComponent("quicksave-assets", isDirectory: true)
+        return try copyAsset(sourceURL, to: assetsDirectory)
+    }
+
+    private func copyAsset(_ sourceURL: URL, to assetsDirectory: URL) throws -> URL {
         try fileManager.createDirectory(at: assetsDirectory, withIntermediateDirectories: true)
 
         let destination = FileNaming.uniqueURL(

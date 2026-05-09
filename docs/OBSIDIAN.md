@@ -121,7 +121,7 @@ Image capture:
 
 ```md
 - 12:30 PM
-  ![image.png](quicksave-assets/image.png)
+  ![[image.png]]
   - user context note
 ```
 
@@ -133,18 +133,25 @@ PDF or other file:
   - user context note
 ```
 
-Note appended after a capture:
+Images are copied into the configured vault media folder and embedded with Obsidian wikilinks:
 
-```md
-- 12:31 PM
-  Note for `2026-05-09T06-41-26.266Z.txt`
-  - user context note
+```text
+<vault>/Visuals/Media/
 ```
 
-Images and files are copied beside the Zettelkatsen daily note:
+Files are copied beside the Zettelkatsen daily note:
 
 ```text
 <daily-note-folder>/quicksave-assets/
+```
+
+Repeated notes after the same capture stay under the same capture entry:
+
+```md
+- 12:30 PM
+  > copied text
+  - first thought
+  - second thought
 ```
 
 ## Configuration

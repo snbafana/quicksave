@@ -39,6 +39,7 @@ struct QuicksaveCLI {
         let options = Options(Array(arguments.dropFirst()))
         let dailyNotes = ObsidianDailyNotes(
             dailyNotesDirectory: options.dailyNotesDirectory,
+            vaultDirectory: options.obsidianVault,
             resolveDailyNote: options.usesDailyNotesDirectoryOverride
                 ? ObsidianDailyNotes.fileSystemDailyNoteResolver(templateURL: options.dailyTemplate)
                 : ObsidianDailyNotes.obsidianTemplateDailyNoteResolver(

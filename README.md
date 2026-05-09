@@ -195,12 +195,14 @@ Rich text links are preserved when the clipboard exposes HTML/RTF:
   > Read [example](https://example.com) now
 ```
 
-Images are copied beside the daily note and embedded:
+Images are copied into the vault media folder and embedded with Obsidian wikilinks:
 
 ```md
 - 12:30 PM
-  ![image.png](quicksave-assets/image.png)
+  ![[image.png]]
 ```
+
+Image files are stored in the configured vault at `Visuals/Media`, matching Obsidian's local attachment convention.
 
 Files are copied beside the daily note and linked:
 

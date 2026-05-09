@@ -175,6 +175,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
     private func obsidianDailyNotes() -> ObsidianDailyNotes {
         ObsidianDailyNotes(
             dailyNotesDirectory: QuicksaveSettings.obsidianDailyNotesURL(),
+            vaultDirectory: QuicksaveSettings.obsidianVaultURL(),
             resolveDailyNote: ObsidianDailyNotes.obsidianTemplateDailyNoteResolver(
                 vaultURL: QuicksaveSettings.obsidianVaultURL(),
                 templateURL: QuicksaveSettings.obsidianDailyTemplateURL()

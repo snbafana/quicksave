@@ -25,11 +25,13 @@ struct ObsidianDailyNotesTests {
         let image = fixture.root.appendingPathComponent("clip image.png")
         try Data([0x89, 0x50, 0x4E, 0x47]).write(to: image)
 
-        let dailyNote = try fixture.writer.append(captureURL: image, date: fixture.date)
+        _ = try fixture.writer.append(captureURL: image, date: fixture.date)
+        let dailyNote = try fixture.writer.appendNotes(for: [image], note: "image context", date: fixture.date)
         let contents = try String(contentsOf: dailyNote, encoding: .utf8)
 
-        #expect(FileManager.default.fileExists(atPath: fixture.dailyNotes.appendingPathComponent("quicksave-assets/clip image.png").path))
-        #expect(contents.contains("![clip image.png](quicksave-assets/clip%20image.png)"))
+        #expect(FileManager.default.fileExists(atPath: fixture.media.appendingPathComponent("clip image.png").path))
+        #expect(contents.contains("![[clip image.png]]"))
+        #expect(contents.contains("![[clip image.png]]\n  - image context"))
     }
 
     @Test func appendsMarkdownTextCaptureAsBlockquote() throws {
@@ -54,11 +56,11 @@ struct ObsidianDailyNotesTests {
         )
         let dailyNote = try fixture.writer.append(captureURL: capture, date: fixture.date)
         let contents = try String(contentsOf: dailyNote, encoding: .utf8)
-        let embeddedImage = fixture.dailyNotes.appendingPathComponent("quicksave-assets/\(capture.lastPathComponent)")
+        let embeddedImage = fixture.media.appendingPathComponent(capture.lastPathComponent)
 
         #expect(capture.pathExtension == "png")
         #expect(FileManager.default.fileExists(atPath: embeddedImage.path))
-        #expect(contents.contains("![\(capture.lastPathComponent)](quicksave-assets/\(capture.lastPathComponent))"))
+        #expect(contents.contains("![[\(capture.lastPathComponent)]]"))
     }
 
     @Test func copiesFilesToAssetsAndAddsMarkdownLink() throws {
@@ -173,6 +175,7 @@ struct ObsidianDailyNotesTests {
 
         let writer = ObsidianDailyNotes(
             dailyNotesDirectory: fixture.dailyNotes,
+            vaultDirectory: fixture.root,
             resolveDailyNote: ObsidianDailyNotes.fileSystemDailyNoteResolver(templateURL: template)
         )
         let capture = fixture.root.appendingPathComponent("capture.txt")
@@ -192,6 +195,7 @@ struct ObsidianDailyNotesTests {
 private final class ObsidianFixture {
     let root: URL
     let dailyNotes: URL
+    let media: URL
     let writer: ObsidianDailyNotes
     let date: Date
     private let resolvedDailyNotes = CountBox()
@@ -205,6 +209,7 @@ private final class ObsidianFixture {
             .appendingPathComponent("quicksave-obsidian-tests", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         dailyNotes = root.appendingPathComponent("Zettelkatsen", isDirectory: true)
+        media = root.appendingPathComponent(ObsidianDailyNotes.defaultMediaRelativePath, isDirectory: true)
 
         var components = DateComponents()
         components.calendar = Calendar(identifier: .gregorian)
@@ -220,7 +225,7 @@ private final class ObsidianFixture {
         try FileManager.default.createDirectory(at: dailyNotes, withIntermediateDirectories: true)
 
         let resolvedDailyNotes = resolvedDailyNotes
-        writer = ObsidianDailyNotes(dailyNotesDirectory: dailyNotes) { url, date in
+        writer = ObsidianDailyNotes(dailyNotesDirectory: dailyNotes, vaultDirectory: root) { url, date in
             resolvedDailyNotes.value += 1
             if !FileManager.default.fileExists(atPath: url.path) {
                 let title = ObsidianDailyNotes.dailyNoteName(for: date)
