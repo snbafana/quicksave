@@ -2,6 +2,14 @@
 
 This integration writes Quicksave captures into an Obsidian daily-note folder.
 
+When today's daily note does not exist, Quicksave creates it by running the Obsidian CLI:
+
+```bash
+obsidian daily
+```
+
+That keeps creation under Obsidian's Daily notes plugin instead of hardcoding an empty markdown file in Quicksave. The Obsidian app/CLI must be installed and the Daily notes plugin should point at the same folder and date format used below.
+
 Target daily-note folder:
 
 ```text
@@ -24,9 +32,9 @@ Example:
 
 The menu-bar app can write to Obsidian directly:
 
-- `Option + D` appends the latest capture into today's daily note.
-- `Option + W` saves the context sidecar and appends the latest capture plus that note into today's daily note.
-- `Option + C` stays capture-only, so quick clipping does not always mutate the vault.
+- `Option + C` saves the clipboard and appends every saved capture into today's daily note.
+- `Option + W` saves the context sidecar and appends the note for each related capture.
+- `Option + D` manually appends the latest capture into today's daily note again if you need a retry.
 
 ## Implemented CLI Flow
 
@@ -41,7 +49,7 @@ What happens:
 
 1. Find the newest non-note file in `~/Quicksave Inbox`.
 2. If a matching `.note.txt` sidecar exists, use it as the context note.
-3. Create today's daily note if it does not exist.
+3. Run `obsidian daily` if today's daily note does not exist.
 4. Ensure the daily note has a `## Quicksave` section.
 5. Append the capture entry.
 
@@ -85,6 +93,14 @@ PDF or other file:
   - user context note
 ```
 
+Note appended after a capture:
+
+```md
+- 12:31 PM
+  Note for `2026-05-09T06-41-26.266Z.txt`
+  - user context note
+```
+
 Images and files are copied into:
 
 ```text
@@ -109,6 +125,12 @@ Or set an environment variable:
 
 ```bash
 export QUICKSAVE_OBSIDIAN_DAILY_NOTES=/Users/snbafana/Documents/Obsidian-Vault/Zettelkatsen
+```
+
+If the CLI binary is not available as `obsidian`, point Quicksave at it:
+
+```bash
+export QUICKSAVE_OBSIDIAN_CLI=/path/to/obsidian
 ```
 
 ## Remaining Integration Plan

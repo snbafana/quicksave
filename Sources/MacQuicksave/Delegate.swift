@@ -84,7 +84,13 @@ final class Delegate: NSObject, NSApplicationDelegate {
         do {
             let result = try capture.captureClipboard(to: QuicksaveSettings.inboxURL())
             lastCaptureURLs = result.savedURLs
-            lastStatus = statusText(for: result)
+            let captureStatus = statusText(for: result)
+            do {
+                try appendCapturesToObsidian(result.savedURLs)
+                lastStatus = "\(captureStatus) + Obsidian"
+            } catch {
+                lastStatus = "\(captureStatus); Obsidian Error"
+            }
         } catch {
             lastStatus = "Error"
         }
@@ -119,8 +125,12 @@ final class Delegate: NSObject, NSApplicationDelegate {
                 lastStatus = "Noted"
             } else {
                 lastCaptureURLs = noteTargets
-                try appendLatestCaptureToObsidian(note: text)
-                lastStatus = "Noted + Obsidian"
+                do {
+                    try appendNotesToObsidian(for: noteTargets, note: text)
+                    lastStatus = "Noted + Obsidian"
+                } catch {
+                    lastStatus = "Noted; Obsidian Error"
+                }
             }
         } catch {
             lastStatus = "Note Error"
@@ -131,8 +141,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
 
     @objc private func appendLatestToObsidian() {
         do {
-            let note = try sidecarNoteForLatestCapture()
-            try appendLatestCaptureToObsidian(note: note)
+            try appendCapturesToObsidian(latestCaptureTargets())
             lastStatus = "Obsidian"
         } catch {
             lastStatus = "Obsidian Error"
@@ -140,23 +149,22 @@ final class Delegate: NSObject, NSApplicationDelegate {
         rebuildMenu()
     }
 
-    private func appendLatestCaptureToObsidian(note: String? = nil) throws {
+    private func appendCapturesToObsidian(_ captureURLs: [URL]) throws {
+        guard !captureURLs.isEmpty else {
+            throw ObsidianAppendError.noCapture
+        }
+
         let writer = ObsidianDailyNotes(dailyNotesDirectory: ObsidianDailyNotes.defaultDailyNotesURL())
-        _ = try writer.append(captureURL: latestCaptureURL(), note: note)
+        _ = try writer.append(captureURLs: captureURLs)
     }
 
-    private func sidecarNoteForLatestCapture() throws -> String? {
-        let captureURL = try latestCaptureURL()
-
-        let sidecar = captureURL
-            .deletingPathExtension()
-            .appendingPathExtension("note")
-            .appendingPathExtension("txt")
-
-        guard FileManager.default.fileExists(atPath: sidecar.path) else {
-            return nil
+    private func appendNotesToObsidian(for captureURLs: [URL], note: String) throws {
+        guard !captureURLs.isEmpty else {
+            throw ObsidianAppendError.noCapture
         }
-        return try String(contentsOf: sidecar, encoding: .utf8)
+
+        let writer = ObsidianDailyNotes(dailyNotesDirectory: ObsidianDailyNotes.defaultDailyNotesURL())
+        _ = try writer.appendNotes(for: captureURLs, note: note)
     }
 
     private func latestCaptureURL() throws -> URL {

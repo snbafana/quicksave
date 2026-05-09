@@ -6,6 +6,8 @@ It is intentionally simple:
 
 - `Option + C` saves the current clipboard.
 - `Option + W` opens a centered liquid-glass note box and saves your typed context as a `.note.txt` sidecar next to the latest capture.
+- Every successful capture is appended to today's Obsidian daily note.
+- Every context note for a capture is appended to today's Obsidian daily note.
 - Captures are normal files in Finder, not a database and not opaque blob folders.
 - The app uses clipboard APIs only. It does not require Accessibility, Screen Recording, OCR, browser extensions, or clipboard polling.
 
@@ -100,7 +102,15 @@ The `Note` popup is a centered minimal glass text field. Press `Enter` to save t
 
 Quicksave includes a CLI for appending captures into Obsidian-style daily notes.
 
-In the menu-bar app, `Obsidian` appends the latest capture into today's daily note. If a matching `.note.txt` sidecar exists, it is included underneath the capture. Saving a note with `Option + W` also appends the latest capture and that note together.
+The menu-bar app appends every `Option + C` capture into today's daily note. Saving a note with `Option + W` also appends that note for each related capture.
+
+When today's daily note does not exist yet, Quicksave asks Obsidian to create it:
+
+```bash
+obsidian daily
+```
+
+After the file exists, Quicksave appends markdown directly. This keeps daily-note creation under Obsidian's Daily notes plugin and template settings.
 
 Default daily-note directory:
 
@@ -131,7 +141,13 @@ swift run quicksave obsidian append-latest \
   --daily-notes-dir /Users/snbafana/Documents/Obsidian-Vault/Zettelkatsen
 ```
 
-Text captures are appended as blockquotes. Images are copied into `quicksave-assets/` and embedded with markdown image syntax. Other files are copied into `quicksave-assets/` and linked.
+Text captures are appended as blockquotes. Images are copied into `quicksave-assets/` and embedded with markdown image syntax. Other files are copied into `quicksave-assets/` and linked. Capture notes are appended as note entries tied to the capture filename.
+
+If the Obsidian CLI binary is not named `obsidian`, set:
+
+```bash
+export QUICKSAVE_OBSIDIAN_CLI=/path/to/obsidian
+```
 
 Install the CLI to `~/.local/bin/quicksave`:
 
@@ -181,6 +197,8 @@ Current coverage verifies:
 - sidecar notes
 - standalone notes
 - Obsidian daily-note creation and appends
+- Obsidian CLI-backed daily-note creation
+- multiple captures and capture note entries
 
 ## Design Boundary
 
