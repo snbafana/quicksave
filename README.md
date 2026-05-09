@@ -152,7 +152,7 @@ Typical workflow:
 4. Quicksave appends that capture into today’s Obsidian daily note.
 5. Press `Option + W` to add context; that note is saved as a sidecar and appended under the related capture.
 
-The note popup is a centered minimal glass text field. Press `Enter` to save, or `Escape` to cancel.
+The note popup is a centered minimal glass text box. It wraps across lines; press `Command + Enter` to save, or `Escape` to cancel.
 
 ## Obsidian Behavior
 
