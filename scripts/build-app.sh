@@ -10,11 +10,11 @@ CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 
 cd "$ROOT"
-swift build -c release
+swift build -c release --product app
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR"
-cp "$ROOT/.build/release/MacQuicksave" "$MACOS_DIR/Mac Quicksave"
+cp "$ROOT/.build/release/app" "$MACOS_DIR/Mac Quicksave"
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

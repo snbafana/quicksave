@@ -1,5 +1,5 @@
 import Foundation
-import QuicksaveCore
+import core
 
 @main
 struct QuicksaveCLI {

@@ -1,7 +1,7 @@
 import AppKit
 import Carbon
 import Foundation
-import QuicksaveCore
+import core
 import ServiceManagement
 import UniformTypeIdentifiers
 

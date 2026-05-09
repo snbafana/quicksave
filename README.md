@@ -296,8 +296,6 @@ scripts/
   build-app.sh           # Build dist/Mac Quicksave.app
   build-dmg.sh           # Build dist/Mac-Quicksave.dmg
   install-cli.sh         # Install ~/.local/bin/quicksave
-docs/
-  OBSIDIAN.md            # More detail on the Obsidian integration
 ```
 
 ## Design Boundary

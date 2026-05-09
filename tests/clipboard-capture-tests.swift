@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import Testing
-@testable import QuicksaveCore
+@testable import core
 
 @Suite("Clipboard capture")
 struct ClipboardCaptureTests {

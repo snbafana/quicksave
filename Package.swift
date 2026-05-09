@@ -3,26 +3,26 @@
 import PackageDescription
 
 let package = Package(
-    name: "Quicksave",
+    name: "quicksave",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .library(name: "QuicksaveCore", targets: ["QuicksaveCore"]),
-        .executable(name: "MacQuicksave", targets: ["MacQuicksave"]),
-        .executable(name: "quicksave", targets: ["QuicksaveCLI"])
+        .library(name: "core", targets: ["core"]),
+        .executable(name: "app", targets: ["app"]),
+        .executable(name: "quicksave", targets: ["cli"])
     ],
     targets: [
         .target(
-            name: "QuicksaveCore",
+            name: "core",
             path: "src/core",
             linkerSettings: [
                 .linkedFramework("AppKit")
             ]
         ),
         .executableTarget(
-            name: "MacQuicksave",
-            dependencies: ["QuicksaveCore"],
+            name: "app",
+            dependencies: ["core"],
             path: "src/app",
             linkerSettings: [
                 .linkedFramework("AppKit"),
@@ -30,13 +30,13 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "QuicksaveCLI",
-            dependencies: ["QuicksaveCore"],
+            name: "cli",
+            dependencies: ["core"],
             path: "src/cli"
         ),
         .testTarget(
-            name: "QuicksaveCoreTests",
-            dependencies: ["QuicksaveCore"],
+            name: "tests",
+            dependencies: ["core"],
             path: "tests",
             linkerSettings: [
                 .linkedFramework("AppKit")

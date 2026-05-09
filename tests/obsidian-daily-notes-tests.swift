@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import Testing
-@testable import QuicksaveCore
+@testable import core
 
 @Suite("Obsidian daily notes")
 struct ObsidianDailyNotesTests {

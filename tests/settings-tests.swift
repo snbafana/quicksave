@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import QuicksaveCore
+@testable import core
 
 @Suite("Quicksave settings")
 struct QuicksaveSettingsTests {
