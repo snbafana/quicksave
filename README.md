@@ -104,13 +104,14 @@ Quicksave includes a CLI for appending captures into Obsidian-style daily notes.
 
 The menu-bar app appends every `Option + C` capture into today's daily note. Saving a note with `Option + W` also appends that note for each related capture.
 
-When today's daily note does not exist yet, Quicksave asks Obsidian to create it:
+When today's daily note does not exist yet, Quicksave asks Obsidian for the daily-note path, then asks Obsidian to create/open the note:
 
 ```bash
+obsidian daily:path
 obsidian daily
 ```
 
-After the file exists, Quicksave appends markdown directly. This keeps daily-note creation under Obsidian's Daily notes plugin and template settings.
+After the expected file exists, Quicksave appends markdown directly. This keeps daily-note creation under Obsidian's Daily notes plugin and template settings, while still writing assets into the configured daily-note folder.
 
 Default daily-note directory:
 
@@ -119,6 +120,13 @@ Default daily-note directory:
 ```
 
 Daily note names use the same format as `05-09-2026.md`.
+
+Set Obsidian's Daily notes plugin to the same folder and format:
+
+```text
+New file location: Zettelkatsen
+Date format: MM-dd-yyyy
+```
 
 Append a specific capture:
 

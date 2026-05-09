@@ -141,7 +141,7 @@ public struct ObsidianDailyNotes {
 
         try createDailyNote(url, date)
         guard fileManager.fileExists(atPath: url.path) else {
-            throw ObsidianDailyNoteError.notCreated(url.path)
+            throw ObsidianDailyNoteError.notCreated(url.path, nil)
         }
     }
 
@@ -174,29 +174,46 @@ public struct ObsidianDailyNotes {
 }
 
 public enum ObsidianDailyNoteError: LocalizedError {
-    case commandFailed(String)
-    case notCreated(String)
+    case commandFailed(String, String)
+    case notCreated(String, String?)
 
     public var errorDescription: String? {
         switch self {
-        case .commandFailed(let message):
-            "Obsidian CLI failed to create the daily note: \(message)"
-        case .notCreated(let path):
-            "Obsidian CLI finished, but the daily note was not created at \(path)."
+        case .commandFailed(let command, let message):
+            return "Obsidian CLI command `\(command)` failed: \(message)"
+        case .notCreated(let path, let cliPath):
+            if let cliPath, !cliPath.isEmpty {
+                return "Obsidian CLI finished, but the daily note was not created at \(path). The CLI reported daily path `\(cliPath)`."
+            }
+            return "Obsidian CLI finished, but the daily note was not created at \(path)."
         }
     }
 }
 
 public enum ObsidianCLI {
     public static func createDailyNote(at expectedURL: URL, date: Date) throws {
-        _ = expectedURL
+        try createDailyNote(at: expectedURL, date: date, executable: configuredExecutable())
+    }
+
+    static func createDailyNote(at expectedURL: URL, date: Date, executable: String) throws {
         _ = date
 
-        let executable = ProcessInfo.processInfo.environment["QUICKSAVE_OBSIDIAN_CLI"] ?? "obsidian"
+        let cliDailyPath = try run(["daily:path"], executable: executable)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        _ = try run(["daily"], executable: executable)
+
+        guard FileManager.default.fileExists(atPath: expectedURL.path) else {
+            throw ObsidianDailyNoteError.notCreated(expectedURL.path, cliDailyPath)
+        }
+    }
+
+    static func run(_ arguments: [String], executable: String = configuredExecutable()) throws -> String {
         let process = Process()
+        let stdout = Pipe()
         let stderr = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = [executable, "daily"]
+        process.arguments = [executable] + arguments
+        process.standardOutput = stdout
         process.standardError = stderr
 
         try process.run()
@@ -205,7 +222,16 @@ public enum ObsidianCLI {
         guard process.terminationStatus == 0 else {
             let message = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            throw ObsidianDailyNoteError.commandFailed(message ?? "exit \(process.terminationStatus)")
+            throw ObsidianDailyNoteError.commandFailed(
+                ([executable] + arguments).joined(separator: " "),
+                message ?? "exit \(process.terminationStatus)"
+            )
         }
+
+        return String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+    }
+
+    private static func configuredExecutable() -> String {
+        ProcessInfo.processInfo.environment["QUICKSAVE_OBSIDIAN_CLI"] ?? "obsidian"
     }
 }

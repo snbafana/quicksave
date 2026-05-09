@@ -96,6 +96,35 @@ struct ObsidianDailyNotesTests {
 
         #expect(fixture.createdDailyNoteCount == 0)
     }
+
+    @Test func obsidianCLICreatorUsesDailyPathThenDaily() throws {
+        let fixture = try ObsidianFixture()
+        let expectedDailyNote = fixture.dailyNotes.appendingPathComponent("05-09-2026.md")
+        let log = fixture.root.appendingPathComponent("obsidian-cli.log")
+        let fakeCLI = fixture.root.appendingPathComponent("fake-obsidian")
+        let script = """
+        #!/bin/sh
+        echo "$1" >> \(shellQuote(log.path))
+        if [ "$1" = "daily:path" ]; then
+          echo "Zettelkatsen/05-09-2026.md"
+          exit 0
+        fi
+        if [ "$1" = "daily" ]; then
+          mkdir -p \(shellQuote(fixture.dailyNotes.path))
+          printf '# 05-09-2026\\n' > \(shellQuote(expectedDailyNote.path))
+          exit 0
+        fi
+        exit 1
+        """
+        try script.write(to: fakeCLI, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCLI.path)
+
+        try ObsidianCLI.createDailyNote(at: expectedDailyNote, date: fixture.date, executable: fakeCLI.path)
+
+        let calls = try String(contentsOf: log, encoding: .utf8)
+        #expect(calls == "daily:path\ndaily\n")
+        #expect(FileManager.default.fileExists(atPath: expectedDailyNote.path))
+    }
 }
 
 private final class ObsidianFixture {
@@ -139,4 +168,8 @@ private final class ObsidianFixture {
 
 private final class CountBox {
     var value = 0
+}
+
+private func shellQuote(_ value: String) -> String {
+    "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
 }

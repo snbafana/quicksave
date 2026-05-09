@@ -2,9 +2,10 @@
 
 This integration writes Quicksave captures into an Obsidian daily-note folder.
 
-When today's daily note does not exist, Quicksave creates it by running the Obsidian CLI:
+When today's daily note does not exist, Quicksave asks Obsidian for the configured daily-note path and then creates/opens the daily note through the Obsidian CLI:
 
 ```bash
+obsidian daily:path
 obsidian daily
 ```
 
@@ -20,6 +21,13 @@ Daily note filenames:
 
 ```text
 MM-dd-yyyy.md
+```
+
+Obsidian Daily notes settings should match:
+
+```text
+New file location: Zettelkatsen
+Date format: MM-dd-yyyy
 ```
 
 Example:
@@ -49,7 +57,7 @@ What happens:
 
 1. Find the newest non-note file in `~/Quicksave Inbox`.
 2. If a matching `.note.txt` sidecar exists, use it as the context note.
-3. Run `obsidian daily` if today's daily note does not exist.
+3. Run `obsidian daily:path`, then `obsidian daily` if today's daily note does not exist.
 4. Ensure the daily note has a `## Quicksave` section.
 5. Append the capture entry.
 
