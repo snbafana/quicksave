@@ -88,6 +88,7 @@ open "dist/Mac Quicksave.app"
 
 - `Save` -> `Option + C`
 - `Note` -> `Option + W`
+- `Obsidian` -> `Option + D`
 - `Open Inbox` -> `Option + O`
 - `Choose...` -> `Option + ,`
 - `Login` toggles launch at login
@@ -95,11 +96,63 @@ open "dist/Mac Quicksave.app"
 
 The `Note` popup is a centered minimal glass text field. Press `Enter` to save the note or `Escape` to cancel.
 
+## Obsidian Daily Notes
+
+Quicksave includes a CLI for appending captures into Obsidian-style daily notes.
+
+In the menu-bar app, `Obsidian` appends the latest capture into today's daily note. If a matching `.note.txt` sidecar exists, it is included underneath the capture. Saving a note with `Option + W` also appends the latest capture and that note together.
+
+Default daily-note directory:
+
+```text
+~/Documents/Obsidian-Vault/Zettelkatsen
+```
+
+Daily note names use the same format as `05-09-2026.md`.
+
+Append a specific capture:
+
+```bash
+swift run quicksave obsidian append \
+  --capture ~/Quicksave\ Inbox/2026-05-09T06-41-26.266Z.txt \
+  --note "why this mattered"
+```
+
+Append the newest capture from the inbox, automatically using a matching `.note.txt` sidecar if one exists:
+
+```bash
+swift run quicksave obsidian append-latest
+```
+
+Override the daily-note directory:
+
+```bash
+swift run quicksave obsidian append-latest \
+  --daily-notes-dir /Users/snbafana/Documents/Obsidian-Vault/Zettelkatsen
+```
+
+Text captures are appended as blockquotes. Images are copied into `quicksave-assets/` and embedded with markdown image syntax. Other files are copied into `quicksave-assets/` and linked.
+
+Install the CLI to `~/.local/bin/quicksave`:
+
+```bash
+./scripts/install-cli.sh
+```
+
+Then it can be used from anywhere:
+
+```bash
+quicksave obsidian append-latest
+```
+
+See [docs/OBSIDIAN.md](docs/OBSIDIAN.md) for the implementation plan and integration details.
+
 ## Project Layout
 
 ```text
 Sources/
   MacQuicksave/          # AppKit menu-bar app, hotkeys, note panel
+  QuicksaveCLI/          # CLI commands for Obsidian integration
   QuicksaveCore/         # Clipboard capture and note-writing logic
 Tests/
   QuicksaveCoreTests/    # Unit tests for capture and note output
@@ -127,6 +180,7 @@ Current coverage verifies:
 - repeated captures creating distinct files
 - sidecar notes
 - standalone notes
+- Obsidian daily-note creation and appends
 
 ## Design Boundary
 

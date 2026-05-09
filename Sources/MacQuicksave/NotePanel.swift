@@ -1,7 +1,7 @@
 import AppKit
 
 @MainActor
-final class ContextNotePanel: NSObject, NSWindowDelegate, NSTextFieldDelegate {
+final class NotePanel: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     private enum Layout {
         static let panelSize = NSSize(width: 500, height: 66)
         static let cornerRadius: CGFloat = 22

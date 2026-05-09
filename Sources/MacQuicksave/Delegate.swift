@@ -5,7 +5,7 @@ import QuicksaveCore
 import ServiceManagement
 
 @MainActor
-final class QuicksaveAppDelegate: NSObject, NSApplicationDelegate {
+final class Delegate: NSObject, NSApplicationDelegate {
     private enum HotKey: UInt32 {
         case save = 1
         case note = 2
@@ -18,8 +18,8 @@ final class QuicksaveAppDelegate: NSObject, NSApplicationDelegate {
     private let capture = ClipboardCapture()
     private let noteWriter = ContextNoteWriter()
     private var lastStatus = "Ready"
-    private var lastSavedURLs: [URL] = []
-    private var notePanel: ContextNotePanel?
+    private var lastCaptureURLs: [URL] = []
+    private var notePanel: NotePanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -57,6 +57,7 @@ final class QuicksaveAppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(optionMenuItem(title: "Save", action: #selector(saveClipboardNow), keyEquivalent: "c"))
         menu.addItem(optionMenuItem(title: "Note", action: #selector(addContextNote), keyEquivalent: "w"))
+        menu.addItem(optionMenuItem(title: "Obsidian", action: #selector(appendLatestToObsidian), keyEquivalent: "d"))
         menu.addItem(optionMenuItem(title: "Open Inbox", action: #selector(openInbox), keyEquivalent: "o"))
         menu.addItem(optionMenuItem(title: "Choose...", action: #selector(chooseInbox), keyEquivalent: ","))
         menu.addItem(loginItem())
@@ -82,7 +83,7 @@ final class QuicksaveAppDelegate: NSObject, NSApplicationDelegate {
     @objc private func saveClipboardNow() {
         do {
             let result = try capture.captureClipboard(to: QuicksaveSettings.inboxURL())
-            lastSavedURLs = result.savedURLs
+            lastCaptureURLs = result.savedURLs
             lastStatus = statusText(for: result)
         } catch {
             lastStatus = "Error"
@@ -96,7 +97,7 @@ final class QuicksaveAppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let panel = ContextNotePanel { [weak self] text in
+        let panel = NotePanel { [weak self] text in
             self?.saveContextNote(text)
         } onCancel: { [weak self] in
             self?.notePanel = nil
@@ -108,18 +109,87 @@ final class QuicksaveAppDelegate: NSObject, NSApplicationDelegate {
 
     private func saveContextNote(_ text: String) {
         do {
-            let noteURL = try noteWriter.save(
+            let noteTargets = latestCaptureTargets()
+            _ = try noteWriter.save(
                 note: text,
-                for: lastSavedURLs,
+                for: noteTargets,
                 in: QuicksaveSettings.inboxURL()
             )
-            lastStatus = "Noted"
-            lastSavedURLs = [noteURL]
+            if noteTargets.isEmpty {
+                lastStatus = "Noted"
+            } else {
+                lastCaptureURLs = noteTargets
+                try appendLatestCaptureToObsidian(note: text)
+                lastStatus = "Noted + Obsidian"
+            }
         } catch {
             lastStatus = "Note Error"
         }
         notePanel = nil
         rebuildMenu()
+    }
+
+    @objc private func appendLatestToObsidian() {
+        do {
+            let note = try sidecarNoteForLatestCapture()
+            try appendLatestCaptureToObsidian(note: note)
+            lastStatus = "Obsidian"
+        } catch {
+            lastStatus = "Obsidian Error"
+        }
+        rebuildMenu()
+    }
+
+    private func appendLatestCaptureToObsidian(note: String? = nil) throws {
+        let writer = ObsidianDailyNotes(dailyNotesDirectory: ObsidianDailyNotes.defaultDailyNotesURL())
+        _ = try writer.append(captureURL: latestCaptureURL(), note: note)
+    }
+
+    private func sidecarNoteForLatestCapture() throws -> String? {
+        let captureURL = try latestCaptureURL()
+
+        let sidecar = captureURL
+            .deletingPathExtension()
+            .appendingPathExtension("note")
+            .appendingPathExtension("txt")
+
+        guard FileManager.default.fileExists(atPath: sidecar.path) else {
+            return nil
+        }
+        return try String(contentsOf: sidecar, encoding: .utf8)
+    }
+
+    private func latestCaptureURL() throws -> URL {
+        if let captureURL = lastCaptureURLs.first {
+            return captureURL
+        }
+
+        let captures = try FileManager.default.contentsOfDirectory(
+            at: QuicksaveSettings.inboxURL(),
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        )
+        .filter { !$0.lastPathComponent.hasSuffix(".note.txt") }
+        .sorted { modificationDate($0) > modificationDate($1) }
+
+        guard let latest = captures.first else {
+            throw ObsidianAppendError.noCapture
+        }
+        return latest
+    }
+
+    private func latestCaptureTargets() -> [URL] {
+        if !lastCaptureURLs.isEmpty {
+            return lastCaptureURLs
+        }
+        guard let latest = try? latestCaptureURL() else {
+            return []
+        }
+        return [latest]
+    }
+
+    private func modificationDate(_ url: URL) -> Date {
+        (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
     }
 
     @objc private func openInbox() {
@@ -205,7 +275,7 @@ final class QuicksaveAppDelegate: NSObject, NSApplicationDelegate {
                     guard let pointer = UnsafeRawPointer(bitPattern: delegateAddress) else {
                         return
                     }
-                    let delegate = Unmanaged<QuicksaveAppDelegate>.fromOpaque(pointer).takeUnretainedValue()
+                    let delegate = Unmanaged<Delegate>.fromOpaque(pointer).takeUnretainedValue()
                     if hotKey == .save {
                         delegate.saveClipboardNow()
                     } else {
@@ -225,6 +295,10 @@ final class QuicksaveAppDelegate: NSObject, NSApplicationDelegate {
         let hotKeyID = EventHotKeyID(signature: OSType("MQSV".fourCharCode), id: hotKey.rawValue)
         return RegisterEventHotKey(keyCode, UInt32(optionKey), hotKeyID, GetApplicationEventTarget(), 0, &ref)
     }
+}
+
+private enum ObsidianAppendError: Error {
+    case noCapture
 }
 
 private extension String {
