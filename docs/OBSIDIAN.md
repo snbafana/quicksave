@@ -43,8 +43,7 @@ What happens:
 1. Find the newest non-note file in `~/Quicksave Inbox`.
 2. If a matching `.note.txt` sidecar exists, use it as the context note.
 3. Create `Zettelkatsen/MM-DD-YYYY.md` from `Templates/Daily Note.md` if today's note does not exist.
-4. Ensure the daily note has a `## Quicksave` section.
-5. Append the capture entry.
+4. Append the capture entry directly.
 
 Install the CLI once if you want the command available outside this repo:
 

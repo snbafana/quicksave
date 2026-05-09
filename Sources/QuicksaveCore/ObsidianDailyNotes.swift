@@ -33,7 +33,7 @@ public struct ObsidianDailyNotes {
             .map { try markdownEntry(captureURL: $0, note: note, dailyNoteURL: dailyNoteURL, date: date) }
             .joined()
         var contents = try String(contentsOf: dailyNoteURL, encoding: .utf8)
-        contents = ensureQuicksaveSection(in: contents)
+        contents = ensureTrailingNewline(in: contents)
         contents += entries
         try contents.write(to: dailyNoteURL, atomically: true, encoding: .utf8)
 
@@ -49,7 +49,7 @@ public struct ObsidianDailyNotes {
             .map { markdownNoteEntry(captureURL: $0, note: note, date: date) }
             .joined()
         var contents = try String(contentsOf: dailyNoteURL, encoding: .utf8)
-        contents = ensureQuicksaveSection(in: contents)
+        contents = ensureTrailingNewline(in: contents)
         contents += entries
         try contents.write(to: dailyNoteURL, atomically: true, encoding: .utf8)
 
@@ -192,12 +192,8 @@ public struct ObsidianDailyNotes {
         return destination
     }
 
-    private func ensureQuicksaveSection(in contents: String) -> String {
-        let normalized = contents.hasSuffix("\n") ? contents : contents + "\n"
-        if normalized.contains("\n## Quicksave\n") || normalized.hasPrefix("## Quicksave\n") {
-            return normalized
-        }
-        return normalized + "\n## Quicksave\n"
+    private func ensureTrailingNewline(in contents: String) -> String {
+        contents.hasSuffix("\n") ? contents : contents + "\n"
     }
 
     private func isImage(_ url: URL) -> Bool {

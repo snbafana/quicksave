@@ -15,7 +15,7 @@ struct ObsidianDailyNotesTests {
 
         #expect(dailyNote.lastPathComponent == "05-09-2026.md")
         #expect(contents.contains("# 05-09-2026"))
-        #expect(contents.contains("## Quicksave"))
+        #expect(!contents.contains("## Quicksave"))
         #expect(contents.contains("> first line\n  > second line"))
         #expect(contents.contains("  - my note"))
     }
