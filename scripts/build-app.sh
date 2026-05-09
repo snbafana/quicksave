@@ -8,13 +8,12 @@ DIST_DIR="$ROOT/dist"
 APP_DIR="$DIST_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
-RESOURCES_DIR="$CONTENTS_DIR/Resources"
 
 cd "$ROOT"
 swift build -c release
 
 rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
+mkdir -p "$MACOS_DIR"
 cp "$ROOT/.build/release/MacQuicksave" "$MACOS_DIR/Mac Quicksave"
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST

@@ -2,6 +2,17 @@ import AppKit
 import Foundation
 
 public final class ClipboardCapture {
+    private enum PasteboardType {
+        static let pdf = NSPasteboard.PasteboardType("com.adobe.pdf")
+        static let fileURL = NSPasteboard.PasteboardType("public.file-url")
+        static let imageTypes: [NSPasteboard.PasteboardType] = [
+            .png,
+            .tiff,
+            NSPasteboard.PasteboardType("public.jpeg"),
+            NSPasteboard.PasteboardType("public.heic")
+        ]
+    }
+
     private let fileManager: FileManager
 
     public init(fileManager: FileManager = .default) {
@@ -31,25 +42,41 @@ public final class ClipboardCapture {
         let stem = fileStem(itemIndex: itemIndex, itemCount: itemCount)
 
         if let fileURL = fileURL(from: item) {
-            let destination = uniqueURL(in: inboxDirectory, preferredName: "\(stem)-\(fileURL.lastPathComponent)")
-            try copyReplacingNothing(from: fileURL, to: destination)
+            let destination = FileNaming.uniqueURL(
+                in: inboxDirectory,
+                preferredName: "\(stem)-\(fileURL.lastPathComponent)",
+                fileManager: fileManager
+            )
+            try fileManager.copyItem(at: fileURL, to: destination)
             return destination
         }
 
-        if let pdf = item.data(forType: NSPasteboard.PasteboardType("com.adobe.pdf")), !pdf.isEmpty {
-            let destination = uniqueURL(in: inboxDirectory, preferredName: "\(stem).pdf")
+        if let pdf = item.data(forType: PasteboardType.pdf), !pdf.isEmpty {
+            let destination = FileNaming.uniqueURL(
+                in: inboxDirectory,
+                preferredName: "\(stem).pdf",
+                fileManager: fileManager
+            )
             try pdf.write(to: destination, options: [.atomic])
             return destination
         }
 
         if let image = image(from: item), let png = pngData(from: image) {
-            let destination = uniqueURL(in: inboxDirectory, preferredName: "\(stem).png")
+            let destination = FileNaming.uniqueURL(
+                in: inboxDirectory,
+                preferredName: "\(stem).png",
+                fileManager: fileManager
+            )
             try png.write(to: destination, options: [.atomic])
             return destination
         }
 
         if let text = text(from: item), !text.isEmpty {
-            let destination = uniqueURL(in: inboxDirectory, preferredName: "\(stem).txt")
+            let destination = FileNaming.uniqueURL(
+                in: inboxDirectory,
+                preferredName: "\(stem).txt",
+                fileManager: fileManager
+            )
             try Data(text.utf8).write(to: destination, options: [.atomic])
             return destination
         }
@@ -72,7 +99,7 @@ public final class ClipboardCapture {
             return url
         }
 
-        if let string = item.string(forType: NSPasteboard.PasteboardType("public.file-url")),
+        if let string = item.string(forType: PasteboardType.fileURL),
            let url = URL(string: string),
            url.isFileURL {
             return url
@@ -82,14 +109,7 @@ public final class ClipboardCapture {
     }
 
     private func image(from item: NSPasteboardItem) -> NSImage? {
-        let imageTypes: [NSPasteboard.PasteboardType] = [
-            .png,
-            .tiff,
-            NSPasteboard.PasteboardType("public.jpeg"),
-            NSPasteboard.PasteboardType("public.heic")
-        ]
-
-        for type in imageTypes {
+        for type in PasteboardType.imageTypes {
             if let data = item.data(forType: type), let image = NSImage(data: data) {
                 return image
             }
@@ -106,45 +126,12 @@ public final class ClipboardCapture {
         return bitmap.representation(using: .png, properties: [:])
     }
 
-    private func copyReplacingNothing(from source: URL, to destination: URL) throws {
-        try fileManager.copyItem(at: source, to: destination)
-    }
-
-    private func uniqueURL(in directory: URL, preferredName: String) -> URL {
-        let cleanName = sanitizeFileName(preferredName)
-        var candidate = directory.appendingPathComponent(cleanName)
-        let ext = candidate.pathExtension
-        let stem = candidate.deletingPathExtension().lastPathComponent
-        var counter = 2
-
-        while fileManager.fileExists(atPath: candidate.path) {
-            let name = ext.isEmpty ? "\(stem)-\(counter)" : "\(stem)-\(counter).\(ext)"
-            candidate = directory.appendingPathComponent(name)
-            counter += 1
-        }
-
-        return candidate
-    }
-
     private func fileStem(itemIndex: Int, itemCount: Int) -> String {
-        let timestamp = Self.timestampFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let timestamp = FileNaming.timestamp()
         if itemCount <= 1 {
             return timestamp
         }
         return "\(timestamp)-\(String(format: "%02d", itemIndex))"
-    }
-
-    private func sanitizeFileName(_ raw: String) -> String {
-        let illegal = CharacterSet(charactersIn: "/:")
-        let scalars = raw.unicodeScalars.map { illegal.contains($0) ? Character("-") : Character($0) }
-        let value = String(scalars).trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? "capture" : value
-    }
-
-    private static func timestampFormatter() -> ISO8601DateFormatter {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
     }
 }
 

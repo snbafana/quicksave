@@ -5,7 +5,12 @@ import QuicksaveCore
 import ServiceManagement
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class QuicksaveAppDelegate: NSObject, NSApplicationDelegate {
+    private enum HotKey: UInt32 {
+        case save = 1
+        case note = 2
+    }
+
     private var statusItem: NSStatusItem?
     private var saveHotKeyRef: EventHotKeyRef?
     private var noteHotKeyRef: EventHotKeyRef?
@@ -14,7 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let noteWriter = ContextNoteWriter()
     private var lastStatus = "Ready"
     private var lastSavedURLs: [URL] = []
-    private var notePanel: NotePanelController?
+    private var notePanel: ContextNotePanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -91,7 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let panel = NotePanelController { [weak self] text in
+        let panel = ContextNotePanel { [weak self] text in
             self?.saveContextNote(text)
         } onCancel: { [weak self] in
             self?.notePanel = nil
@@ -166,8 +171,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func installHotKeys() {
-        let saveStatus = registerHotKey(id: 1, keyCode: UInt32(kVK_ANSI_C), ref: &saveHotKeyRef)
-        let noteStatus = registerHotKey(id: 2, keyCode: UInt32(kVK_ANSI_W), ref: &noteHotKeyRef)
+        let saveStatus = registerHotKey(.save, keyCode: UInt32(kVK_ANSI_C), ref: &saveHotKeyRef)
+        let noteStatus = registerHotKey(.note, keyCode: UInt32(kVK_ANSI_W), ref: &noteHotKeyRef)
         guard saveStatus == noErr, noteStatus == noErr else {
             lastStatus = "Hotkey unavailable"
             rebuildMenu()
@@ -191,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     &hotKeyID
                 )
 
-                guard hotKeyID.id == 1 || hotKeyID.id == 2 else {
+                guard let hotKey = HotKey(rawValue: hotKeyID.id) else {
                     return noErr
                 }
 
@@ -200,8 +205,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     guard let pointer = UnsafeRawPointer(bitPattern: delegateAddress) else {
                         return
                     }
-                    let delegate = Unmanaged<AppDelegate>.fromOpaque(pointer).takeUnretainedValue()
-                    if hotKeyID.id == 1 {
+                    let delegate = Unmanaged<QuicksaveAppDelegate>.fromOpaque(pointer).takeUnretainedValue()
+                    if hotKey == .save {
                         delegate.saveClipboardNow()
                     } else {
                         delegate.addContextNote()
@@ -216,8 +221,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    private func registerHotKey(id: UInt32, keyCode: UInt32, ref: inout EventHotKeyRef?) -> OSStatus {
-        let hotKeyID = EventHotKeyID(signature: OSType("MQSV".fourCharCode), id: id)
+    private func registerHotKey(_ hotKey: HotKey, keyCode: UInt32, ref: inout EventHotKeyRef?) -> OSStatus {
+        let hotKeyID = EventHotKeyID(signature: OSType("MQSV".fourCharCode), id: hotKey.rawValue)
         return RegisterEventHotKey(keyCode, UInt32(optionKey), hotKeyID, GetApplicationEventTarget(), 0, &ref)
     }
 }

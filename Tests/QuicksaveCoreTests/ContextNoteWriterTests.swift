@@ -5,7 +5,7 @@ import Testing
 @Suite("Context notes")
 struct ContextNoteWriterTests {
     @Test func savesNoteNextToSingleFile() throws {
-        let fixture = try NoteFixture()
+        let fixture = try ContextNoteFixture()
         let savedURL = fixture.inboxURL.appendingPathComponent("capture.txt")
         try "saved".write(to: savedURL, atomically: true, encoding: .utf8)
 
@@ -16,7 +16,7 @@ struct ContextNoteWriterTests {
     }
 
     @Test func savesStandaloneNoteWhenNoCaptureExists() throws {
-        let fixture = try NoteFixture()
+        let fixture = try ContextNoteFixture()
 
         let noteURL = try ContextNoteWriter().save(note: "standalone thought", for: [], in: fixture.inboxURL)
 
@@ -25,7 +25,7 @@ struct ContextNoteWriterTests {
     }
 }
 
-private struct NoteFixture {
+private struct ContextNoteFixture {
     let inboxURL: URL
 
     init() throws {

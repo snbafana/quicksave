@@ -1,8 +1,7 @@
 import Foundation
 
 public struct QuicksaveSettings {
-    public static let inboxBookmarkKey = "inboxBookmark"
-    public static let inboxPathKey = "inboxPath"
+    private static let inboxPathKey = "inboxPath"
 
     public static func defaultInboxURL() -> URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Quicksave Inbox", isDirectory: true)

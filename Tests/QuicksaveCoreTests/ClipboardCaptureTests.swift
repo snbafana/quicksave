@@ -6,7 +6,7 @@ import Testing
 @Suite("Clipboard capture")
 struct ClipboardCaptureTests {
     @Test func capturesPlainTextAsFlatTextFile() throws {
-        let fixture = try TestFixture()
+        let fixture = try ClipboardFixture()
         let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
         pasteboard.clearContents()
         pasteboard.setString("hello quicksave", forType: .string)
@@ -22,7 +22,7 @@ struct ClipboardCaptureTests {
     }
 
     @Test func repeatedCapturesCreateDistinctFiles() throws {
-        let fixture = try TestFixture()
+        let fixture = try ClipboardFixture()
         let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
         pasteboard.clearContents()
         pasteboard.setString("same text", forType: .string)
@@ -37,7 +37,7 @@ struct ClipboardCaptureTests {
     }
 
     @Test func capturesURLAsTextFile() throws {
-        let fixture = try TestFixture()
+        let fixture = try ClipboardFixture()
         let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
         let item = NSPasteboardItem()
         item.setString("https://example.com", forType: .URL)
@@ -52,7 +52,7 @@ struct ClipboardCaptureTests {
     }
 
     @Test func capturesImageAsPNG() throws {
-        let fixture = try TestFixture()
+        let fixture = try ClipboardFixture()
         let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
         pasteboard.clearContents()
         pasteboard.writeObjects([makeTestImage()])
@@ -67,7 +67,7 @@ struct ClipboardCaptureTests {
     }
 
     @Test func capturesCopiedFileIntoInbox() throws {
-        let fixture = try TestFixture()
+        let fixture = try ClipboardFixture()
         let sourceURL = fixture.rootURL.appendingPathComponent("source.txt")
         try "file payload".write(to: sourceURL, atomically: true, encoding: .utf8)
 
@@ -84,7 +84,7 @@ struct ClipboardCaptureTests {
     }
 
     @Test func capturesCopiedFolderIntoInbox() throws {
-        let fixture = try TestFixture()
+        let fixture = try ClipboardFixture()
         let folderURL = fixture.rootURL.appendingPathComponent("source-folder", isDirectory: true)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         try "nested payload".write(
@@ -108,7 +108,7 @@ struct ClipboardCaptureTests {
     }
 
     @Test func capturesDirectPDFDataAsFlatPDF() throws {
-        let fixture = try TestFixture()
+        let fixture = try ClipboardFixture()
         let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
         let item = NSPasteboardItem()
         let pdfData = Data("%PDF-1.4\n% quicksave test\n%%EOF\n".utf8)
@@ -124,7 +124,7 @@ struct ClipboardCaptureTests {
     }
 }
 
-private struct TestFixture {
+private struct ClipboardFixture {
     let rootURL: URL
     let inboxURL: URL
 
