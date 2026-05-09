@@ -97,7 +97,6 @@ struct ObsidianDailyNotesTests {
 
         _ = try fixture.writer.append(captureURLs: [first, second], date: fixture.date)
         let dailyNote = try fixture.writer.appendNotes(for: [first, second], note: "why this mattered", date: fixture.date)
-        _ = try fixture.writer.appendNotes(for: [first, second], note: "why this mattered", date: fixture.date)
         let contents = try String(contentsOf: dailyNote, encoding: .utf8)
 
         #expect(!contents.contains("Note for `first.txt`"))
@@ -107,6 +106,21 @@ struct ObsidianDailyNotesTests {
         #expect(contents.components(separatedBy: "first capture body").count == 2)
         #expect(contents.components(separatedBy: "second capture body").count == 2)
         #expect(contents.components(separatedBy: "why this mattered").count == 3)
+    }
+
+    @Test func appendsMultipleNotesToSameCaptureEntry() throws {
+        let fixture = try ObsidianFixture()
+        let capture = fixture.root.appendingPathComponent("capture.txt")
+        try "saved once".write(to: capture, atomically: true, encoding: .utf8)
+
+        _ = try fixture.writer.append(captureURL: capture, date: fixture.date)
+        let dailyNote = try fixture.writer.appendNotes(for: [capture], note: "first thought", date: fixture.date)
+        _ = try fixture.writer.appendNotes(for: [capture], note: "second thought", date: fixture.date)
+        let contents = try String(contentsOf: dailyNote, encoding: .utf8)
+
+        #expect(contents.contains("> saved once\n  - first thought\n  - second thought"))
+        #expect(contents.components(separatedBy: "saved once").count == 2)
+        #expect(!contents.contains("Note for `capture.txt`"))
     }
 
     @Test func noteFallbackIncludesCaptureWhenEntryDoesNotExist() throws {

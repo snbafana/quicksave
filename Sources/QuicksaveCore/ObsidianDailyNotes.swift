@@ -206,11 +206,6 @@ public struct ObsidianDailyNotes {
         let entryStart = beforeMarker.range(of: "\n- ", options: .backwards)?.lowerBound ?? contents.startIndex
         let nextEntrySearchStart = contents.index(after: entryStart)
         let entryEnd = contents[nextEntrySearchStart...].range(of: "\n- ")?.lowerBound ?? contents.endIndex
-        let entry = String(contents[entryStart..<entryEnd])
-
-        if noteExists(in: entry, note: note) {
-            return contents
-        }
 
         let insertionIndex = insertionIndexBeforeTrailingBlankLines(
             from: entryStart,
@@ -255,14 +250,6 @@ public struct ObsidianDailyNotes {
             return blockquote(text)
         }
         return captureURL.lastPathComponent
-    }
-
-    private func noteExists(in entry: String, note: String) -> Bool {
-        let normalizedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedNote.isEmpty else {
-            return true
-        }
-        return entry.contains("  - \(normalizedNote)\n") || entry.hasSuffix("  - \(normalizedNote)")
     }
 
     private func ensureTrailingNewline(in contents: String) -> String {
