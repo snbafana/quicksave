@@ -287,12 +287,11 @@ Current tests cover clipboard capture, file/folder copies, image capture, PDF ca
 ## Project Layout
 
 ```text
-Sources/
-  MacQuicksave/          # AppKit menu-bar app, global hotkeys, note panel
-  QuicksaveCLI/          # CLI commands for config and Obsidian appends
-  QuicksaveCore/         # Clipboard capture, settings, file naming, Obsidian writer
-Tests/
-  QuicksaveCoreTests/    # Unit tests for capture, settings, notes, Obsidian output
+src/
+  app/                   # AppKit menu-bar app, global hotkeys, note panel
+  cli/                   # CLI commands for config and Obsidian appends
+  core/                  # Clipboard capture, settings, file naming, Obsidian writer
+tests/                   # Unit tests for capture, settings, notes, Obsidian output
 scripts/
   build-app.sh           # Build dist/Mac Quicksave.app
   build-dmg.sh           # Build dist/Mac-Quicksave.dmg

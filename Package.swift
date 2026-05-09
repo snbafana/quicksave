@@ -15,6 +15,7 @@ let package = Package(
     targets: [
         .target(
             name: "QuicksaveCore",
+            path: "src/core",
             linkerSettings: [
                 .linkedFramework("AppKit")
             ]
@@ -22,6 +23,7 @@ let package = Package(
         .executableTarget(
             name: "MacQuicksave",
             dependencies: ["QuicksaveCore"],
+            path: "src/app",
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("Carbon")
@@ -29,11 +31,13 @@ let package = Package(
         ),
         .executableTarget(
             name: "QuicksaveCLI",
-            dependencies: ["QuicksaveCore"]
+            dependencies: ["QuicksaveCore"],
+            path: "src/cli"
         ),
         .testTarget(
             name: "QuicksaveCoreTests",
             dependencies: ["QuicksaveCore"],
+            path: "tests",
             linkerSettings: [
                 .linkedFramework("AppKit")
             ]
