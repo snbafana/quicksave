@@ -66,6 +66,56 @@ Open the DMG and drag `Mac Quicksave.app` into `/Applications`.
 
 Because this is currently a local unsigned build, macOS may show a Gatekeeper warning on first launch. If needed, right-click the app in Finder and choose `Open`.
 
+Install the companion CLI:
+
+```bash
+./scripts/install-cli.sh
+```
+
+Make sure `~/.local/bin` is on your shell `PATH`, then confirm:
+
+```bash
+quicksave config show
+```
+
+## Configure
+
+The menu-bar app and CLI share the same persisted config under the `com.snbafana.quicksave` defaults domain.
+
+Default config:
+
+```text
+inbox=~/Quicksave Inbox
+obsidian_vault=~/Documents/Obsidian-Vault
+obsidian_daily_notes=~/Documents/Obsidian-Vault/Zettelkatsen
+obsidian_daily_template=~/Documents/Obsidian-Vault/Templates/Daily Note.md
+```
+
+Configure from the CLI:
+
+```bash
+quicksave config set \
+  --inbox ~/Quicksave\ Inbox \
+  --vault ~/Documents/Obsidian-Vault \
+  --daily-notes-dir ~/Documents/Obsidian-Vault/Zettelkatsen \
+  --daily-template ~/Documents/Obsidian-Vault/Templates/Daily\ Note.md
+```
+
+Inspect or reset:
+
+```bash
+quicksave config show
+quicksave config reset-obsidian
+```
+
+You can also configure from the menu-bar app:
+
+- `Choose Inbox...`
+- `Choose Vault...`
+- `Choose Daily Notes...`
+- `Choose Daily Template...`
+- `Reset Obsidian Config`
+
 ## Run During Development
 
 Build the app bundle:
@@ -93,7 +143,11 @@ open "dist/Mac Quicksave.app"
 - `Note` -> `Option + W`
 - `Obsidian` -> `Option + D`
 - `Open Inbox` -> `Option + O`
-- `Choose...` -> `Option + ,`
+- `Choose Inbox...` -> `Option + ,`
+- `Choose Vault...`
+- `Choose Daily Notes...`
+- `Choose Daily Template...`
+- `Reset Obsidian Config`
 - `Login` toggles launch at login
 - `Quit` exits the menu-bar app
 
@@ -170,6 +224,8 @@ Then it can be used from anywhere:
 
 ```bash
 quicksave obsidian append-latest
+quicksave obsidian today
+quicksave config show
 ```
 
 See [docs/OBSIDIAN.md](docs/OBSIDIAN.md) for the implementation plan and integration details.

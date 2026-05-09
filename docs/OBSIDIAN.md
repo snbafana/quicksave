@@ -38,6 +38,12 @@ Use the CLI from the repo root:
 swift run quicksave obsidian append-latest
 ```
 
+After installing the CLI, the same command is:
+
+```bash
+quicksave obsidian append-latest
+```
+
 What happens:
 
 1. Find the newest non-note file in `~/Quicksave Inbox`.
@@ -58,6 +64,40 @@ The script installs:
 ```
 
 You can override the install directory with `QUICKSAVE_INSTALL_DIR`.
+
+## Install and Configure
+
+Install:
+
+```bash
+./scripts/build-dmg.sh
+./scripts/install-cli.sh
+```
+
+Configure the shared app/CLI paths:
+
+```bash
+quicksave config set \
+  --inbox ~/Quicksave\ Inbox \
+  --vault ~/Documents/Obsidian-Vault \
+  --daily-notes-dir ~/Documents/Obsidian-Vault/Zettelkatsen \
+  --daily-template ~/Documents/Obsidian-Vault/Templates/Daily\ Note.md
+```
+
+Inspect:
+
+```bash
+quicksave config show
+quicksave obsidian today
+```
+
+Reset Obsidian paths to repo defaults:
+
+```bash
+quicksave config reset-obsidian
+```
+
+The menu-bar app exposes the same configuration with `Choose Vault...`, `Choose Daily Notes...`, `Choose Daily Template...`, and `Reset Obsidian Config`.
 
 ## Markdown Format
 
@@ -118,7 +158,7 @@ By default, Quicksave writes to:
 For CLI-only tests or one-off exports, you can write to a specific folder:
 
 ```bash
-swift run quicksave obsidian append-latest --daily-notes-dir /path/to/daily-notes
+quicksave obsidian append-latest --daily-notes-dir /path/to/daily-notes --daily-template /path/to/Daily.md
 ```
 
 The default template is:

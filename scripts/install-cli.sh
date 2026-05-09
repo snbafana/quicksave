@@ -11,3 +11,4 @@ mkdir -p "$INSTALL_DIR"
 cp "$ROOT/.build/release/quicksave" "$INSTALL_DIR/quicksave"
 
 echo "$INSTALL_DIR/quicksave"
+echo "Run '$INSTALL_DIR/quicksave config show' to inspect configuration."

@@ -3,6 +3,7 @@ import Carbon
 import Foundation
 import QuicksaveCore
 import ServiceManagement
+import UniformTypeIdentifiers
 
 @MainActor
 final class Delegate: NSObject, NSApplicationDelegate {
@@ -59,7 +60,11 @@ final class Delegate: NSObject, NSApplicationDelegate {
         menu.addItem(optionMenuItem(title: "Note", action: #selector(addContextNote), keyEquivalent: "w"))
         menu.addItem(optionMenuItem(title: "Obsidian", action: #selector(appendLatestToObsidian), keyEquivalent: "d"))
         menu.addItem(optionMenuItem(title: "Open Inbox", action: #selector(openInbox), keyEquivalent: "o"))
-        menu.addItem(optionMenuItem(title: "Choose...", action: #selector(chooseInbox), keyEquivalent: ","))
+        menu.addItem(optionMenuItem(title: "Choose Inbox...", action: #selector(chooseInbox), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "Choose Vault...", action: #selector(chooseObsidianVault), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Choose Daily Notes...", action: #selector(chooseObsidianDailyNotes), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Choose Daily Template...", action: #selector(chooseObsidianDailyTemplate), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Reset Obsidian Config", action: #selector(resetObsidianConfig), keyEquivalent: ""))
         menu.addItem(loginItem())
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: ""))
@@ -154,7 +159,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
             throw ObsidianAppendError.noCapture
         }
 
-        let writer = ObsidianDailyNotes(dailyNotesDirectory: ObsidianDailyNotes.defaultDailyNotesURL())
+        let writer = obsidianDailyNotes()
         _ = try writer.append(captureURLs: captureURLs)
     }
 
@@ -163,8 +168,18 @@ final class Delegate: NSObject, NSApplicationDelegate {
             throw ObsidianAppendError.noCapture
         }
 
-        let writer = ObsidianDailyNotes(dailyNotesDirectory: ObsidianDailyNotes.defaultDailyNotesURL())
+        let writer = obsidianDailyNotes()
         _ = try writer.appendNotes(for: captureURLs, note: note)
+    }
+
+    private func obsidianDailyNotes() -> ObsidianDailyNotes {
+        ObsidianDailyNotes(
+            dailyNotesDirectory: QuicksaveSettings.obsidianDailyNotesURL(),
+            resolveDailyNote: ObsidianDailyNotes.obsidianTemplateDailyNoteResolver(
+                vaultURL: QuicksaveSettings.obsidianVaultURL(),
+                templateURL: QuicksaveSettings.obsidianDailyTemplateURL()
+            )
+        )
     }
 
     private func latestCaptureURL() throws -> URL {
@@ -218,6 +233,68 @@ final class Delegate: NSObject, NSApplicationDelegate {
         if panel.runModal() == .OK, let url = panel.url {
             QuicksaveSettings.setInboxURL(url)
             lastStatus = "Inbox Set"
+            rebuildMenu()
+        }
+    }
+
+    @objc private func chooseObsidianVault() {
+        chooseDirectory(
+            title: "Choose Obsidian Vault",
+            currentURL: QuicksaveSettings.obsidianVaultURL(),
+            status: "Vault Set",
+            setter: { QuicksaveSettings.setObsidianVaultURL($0) }
+        )
+    }
+
+    @objc private func chooseObsidianDailyNotes() {
+        chooseDirectory(
+            title: "Choose Obsidian Daily Notes Folder",
+            currentURL: QuicksaveSettings.obsidianDailyNotesURL(),
+            status: "Daily Notes Set",
+            setter: { QuicksaveSettings.setObsidianDailyNotesURL($0) }
+        )
+    }
+
+    @objc private func chooseObsidianDailyTemplate() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Obsidian Daily Template"
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.text, .plainText, .utf8PlainText]
+        panel.directoryURL = QuicksaveSettings.obsidianDailyTemplateURL().deletingLastPathComponent()
+
+        NSApp.activate(ignoringOtherApps: true)
+        if panel.runModal() == .OK, let url = panel.url {
+            QuicksaveSettings.setObsidianDailyTemplateURL(url)
+            lastStatus = "Template Set"
+            rebuildMenu()
+        }
+    }
+
+    @objc private func resetObsidianConfig() {
+        QuicksaveSettings.resetObsidian()
+        lastStatus = "Obsidian Reset"
+        rebuildMenu()
+    }
+
+    private func chooseDirectory(
+        title: String,
+        currentURL: URL,
+        status: String,
+        setter: (URL) -> Void
+    ) {
+        let panel = NSOpenPanel()
+        panel.title = title
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = currentURL
+
+        NSApp.activate(ignoringOtherApps: true)
+        if panel.runModal() == .OK, let url = panel.url {
+            setter(url)
+            lastStatus = status
             rebuildMenu()
         }
     }
