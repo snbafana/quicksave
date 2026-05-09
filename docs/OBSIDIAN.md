@@ -2,39 +2,25 @@
 
 This integration writes Quicksave captures into an Obsidian daily-note folder.
 
-When today's daily note does not exist, Quicksave asks Obsidian for the configured daily-note path and then creates/opens the daily note through the Obsidian CLI:
+When today's daily note does not exist, Quicksave creates it at the Zettelkatsen path:
+
+```text
+/Users/snbafana/Documents/Obsidian-Vault/Zettelkatsen/MM-DD-YYYY.md
+```
+
+The missing note is created from the existing daily template:
+
+```text
+/Users/snbafana/Documents/Obsidian-Vault/Templates/Daily Note.md
+```
+
+Quicksave first tries to create the note through the Obsidian CLI:
 
 ```bash
-obsidian daily:path
-obsidian daily
+obsidian create path=Zettelkatsen/05-09-2026.md content="<rendered template>" open
 ```
 
-That keeps creation, location, and date format under Obsidian's Daily notes plugin instead of hardcoding an empty markdown file in Quicksave.
-
-The live daily note is whatever Obsidian reports:
-
-```bash
-obsidian daily:path
-```
-
-For example, if Obsidian reports `2026-05-09.md`, Quicksave appends to:
-
-```text
-/Users/snbafana/Documents/Obsidian-Vault/2026-05-09.md
-```
-
-If you want captures under `Zettelkatsen` with names like `05-09-2026.md`, set Obsidian's Daily notes plugin to:
-
-```text
-New file location: Zettelkatsen
-Date format: MM-dd-yyyy
-```
-
-Example:
-
-```text
-05-09-2026.md
-```
+If that command fails, Quicksave writes the same rendered template directly and then appends the capture. The app does not follow `obsidian daily:path` because your Obsidian Daily Notes plugin currently reports the root-level `YYYY-MM-DD.md` path, which is not the capture target.
 
 ## Implemented App Flow
 
@@ -49,15 +35,14 @@ The menu-bar app can write to Obsidian directly:
 Use the CLI from the repo root:
 
 ```bash
-swift run quicksave obsidian append-latest \
-  --daily-notes-dir /Users/snbafana/Documents/Obsidian-Vault/Zettelkatsen
+swift run quicksave obsidian append-latest
 ```
 
 What happens:
 
 1. Find the newest non-note file in `~/Quicksave Inbox`.
 2. If a matching `.note.txt` sidecar exists, use it as the context note.
-3. Run `obsidian daily:path`, then `obsidian daily` if today's daily note does not exist.
+3. Create `Zettelkatsen/MM-DD-YYYY.md` from `Templates/Daily Note.md` if today's note does not exist.
 4. Ensure the daily note has a `## Quicksave` section.
 5. Append the capture entry.
 
@@ -117,7 +102,7 @@ Note appended after a capture:
   - user context note
 ```
 
-Images and files are copied beside the resolved daily note:
+Images and files are copied beside the Zettelkatsen daily note:
 
 ```text
 <daily-note-folder>/quicksave-assets/
@@ -125,22 +110,28 @@ Images and files are copied beside the resolved daily note:
 
 ## Configuration
 
-By default, Quicksave follows Obsidian's configured daily note:
+By default, Quicksave writes to:
 
-```bash
-obsidian daily:path
+```text
+~/Documents/Obsidian-Vault/Zettelkatsen
 ```
 
-For CLI-only tests or one-off exports, you can bypass Obsidian's daily-note setting and write to a specific folder:
+For CLI-only tests or one-off exports, you can write to a specific folder:
 
 ```bash
 swift run quicksave obsidian append-latest --daily-notes-dir /path/to/daily-notes
 ```
 
-The fallback folder is:
+The default template is:
 
 ```text
-~/Documents/Obsidian-Vault/Zettelkatsen
+~/Documents/Obsidian-Vault/Templates/Daily Note.md
+```
+
+You can override it with:
+
+```bash
+export QUICKSAVE_OBSIDIAN_DAILY_TEMPLATE=/path/to/Daily\ Note.md
 ```
 
 If the CLI binary is not available as `obsidian`, point Quicksave at it:
@@ -151,8 +142,8 @@ export QUICKSAVE_OBSIDIAN_CLI=/path/to/obsidian
 
 ## Remaining Integration Plan
 
-The current version follows the Obsidian CLI daily-note path by default. The remaining polish is configuration, not capture logic:
+The current version follows the Zettelkatsen daily-note path by default. The remaining polish is configuration, not capture logic:
 
 1. Add a compact command to open Obsidian Daily Notes settings.
-2. Add a small status surface that shows the path returned by `obsidian daily:path`.
+2. Add a small status surface that shows the Zettelkatsen path Quicksave will append to.
 3. Add optional app settings only if this CLI-backed default is not enough in daily use.

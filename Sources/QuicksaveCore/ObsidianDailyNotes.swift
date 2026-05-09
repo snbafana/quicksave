@@ -1,7 +1,9 @@
 import Foundation
 
 public struct ObsidianDailyNotes {
+    public static let defaultVaultPath = "~/Documents/Obsidian-Vault"
     public static let defaultDailyNotesPath = "~/Documents/Obsidian-Vault/Zettelkatsen"
+    public static let defaultDailyTemplatePath = "~/Documents/Obsidian-Vault/Templates/Daily Note.md"
     public typealias DailyNoteResolver = (URL, Date) throws -> URL
 
     private let dailyNotesDirectory: URL
@@ -11,11 +13,11 @@ public struct ObsidianDailyNotes {
     public init(
         dailyNotesDirectory: URL,
         fileManager: FileManager = .default,
-        resolveDailyNote: @escaping DailyNoteResolver = ObsidianCLI.resolveOrCreateDailyNote
+        resolveDailyNote: DailyNoteResolver? = nil
     ) {
         self.dailyNotesDirectory = dailyNotesDirectory
         self.fileManager = fileManager
-        self.resolveDailyNote = resolveDailyNote
+        self.resolveDailyNote = resolveDailyNote ?? Self.obsidianTemplateDailyNoteResolver(fileManager: fileManager)
     }
 
     public func append(captureURL: URL, note: String? = nil, date: Date = Date()) throws -> URL {
@@ -59,6 +61,16 @@ public struct ObsidianDailyNotes {
         return URL(fileURLWithPath: NSString(string: raw).expandingTildeInPath, isDirectory: true)
     }
 
+    public static func defaultVaultURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        let raw = environment["QUICKSAVE_OBSIDIAN_VAULT"] ?? defaultVaultPath
+        return URL(fileURLWithPath: NSString(string: raw).expandingTildeInPath, isDirectory: true)
+    }
+
+    public static func defaultDailyTemplateURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        let raw = environment["QUICKSAVE_OBSIDIAN_DAILY_TEMPLATE"] ?? defaultDailyTemplatePath
+        return URL(fileURLWithPath: NSString(string: raw).expandingTildeInPath, isDirectory: false)
+    }
+
     public static func dailyNoteName(for date: Date, calendar: Calendar = .current) -> String {
         let formatter = DateFormatter()
         formatter.calendar = calendar
@@ -67,12 +79,44 @@ public struct ObsidianDailyNotes {
         return formatter.string(from: date)
     }
 
-    public static func fileSystemDailyNoteResolver(fileManager: FileManager = .default) -> DailyNoteResolver {
+    public static func obsidianTemplateDailyNoteResolver(
+        vaultURL: URL = defaultVaultURL(),
+        templateURL: URL = defaultDailyTemplateURL(),
+        fileManager: FileManager = .default
+    ) -> DailyNoteResolver {
+        { expectedURL, date in
+            if fileManager.fileExists(atPath: expectedURL.path) {
+                return expectedURL
+            }
+
+            let content = try renderDailyTemplate(at: templateURL, date: date, title: expectedURL.deletingPathExtension().lastPathComponent)
+            let relativePath = vaultRelativePath(for: expectedURL, vaultURL: vaultURL)
+
+            do {
+                try ObsidianCLI.create(path: relativePath, content: content)
+            } catch {
+                try createDailyNoteFile(at: expectedURL, content: content, fileManager: fileManager)
+            }
+
+            guard fileManager.fileExists(atPath: expectedURL.path) else {
+                throw ObsidianDailyNoteError.notCreated(expectedURL.path, nil)
+            }
+            return expectedURL
+        }
+    }
+
+    public static func fileSystemDailyNoteResolver(
+        fileManager: FileManager = .default,
+        templateURL: URL? = nil
+    ) -> DailyNoteResolver {
         { expectedURL, date in
             if !fileManager.fileExists(atPath: expectedURL.path) {
-                try fileManager.createDirectory(at: expectedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-                let title = Self.dailyNoteName(for: date)
-                try "# \(title)\n".write(to: expectedURL, atomically: true, encoding: .utf8)
+                let content = try renderDailyTemplate(
+                    at: templateURL,
+                    date: date,
+                    title: expectedURL.deletingPathExtension().lastPathComponent
+                )
+                try createDailyNoteFile(at: expectedURL, content: content, fileManager: fileManager)
             }
             return expectedURL
         }
@@ -178,6 +222,78 @@ public struct ObsidianDailyNotes {
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: date)
     }
+
+    private static func createDailyNoteFile(at url: URL, content: String, fileManager: FileManager) throws {
+        try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try content.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private static func renderDailyTemplate(at templateURL: URL?, date: Date, title: String) throws -> String {
+        let template: String
+        if let templateURL, FileManager.default.fileExists(atPath: templateURL.path) {
+            template = try String(contentsOf: templateURL, encoding: .utf8)
+        } else {
+            template = "# {{title}}\n"
+        }
+
+        return renderTemplate(template, date: date, title: title)
+    }
+
+    private static func renderTemplate(_ template: String, date: Date, title: String) -> String {
+        var output = template
+        output = replaceTemplateTokens(named: "date", in: output, date: date, defaultFormat: "YYYY-MM-DD")
+        output = replaceTemplateTokens(named: "time", in: output, date: date, defaultFormat: "HH:mm")
+        output = output.replacingOccurrences(of: "{{title}}", with: title)
+        return output.hasSuffix("\n") ? output : output + "\n"
+    }
+
+    private static func replaceTemplateTokens(named token: String, in text: String, date: Date, defaultFormat: String) -> String {
+        let escapedToken = NSRegularExpression.escapedPattern(for: token)
+        let pattern = "\\{\\{\(escapedToken)(?::([^}]+))?\\}\\}"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return text
+        }
+
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length)).reversed()
+        var output = text
+
+        for match in matches {
+            let formatRange = match.range(at: 1)
+            let momentFormat = formatRange.location == NSNotFound ? defaultFormat : nsText.substring(with: formatRange)
+            let value = formatDate(date, momentFormat: momentFormat)
+            if let range = Range(match.range, in: output) {
+                output.replaceSubrange(range, with: value)
+            }
+        }
+
+        return output
+    }
+
+    private static func formatDate(_ date: Date, momentFormat: String) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = swiftDateFormat(from: momentFormat)
+        return formatter.string(from: date)
+    }
+
+    private static func swiftDateFormat(from momentFormat: String) -> String {
+        momentFormat
+            .replacingOccurrences(of: "YYYY", with: "yyyy")
+            .replacingOccurrences(of: "YY", with: "yy")
+            .replacingOccurrences(of: "DD", with: "dd")
+    }
+
+    private static func vaultRelativePath(for url: URL, vaultURL: URL) -> String {
+        let vaultPath = vaultURL.standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+        let prefix = vaultPath.hasSuffix("/") ? vaultPath : vaultPath + "/"
+
+        if path.hasPrefix(prefix) {
+            return String(path.dropFirst(prefix.count))
+        }
+        return url.lastPathComponent
+    }
 }
 
 public enum ObsidianDailyNoteError: LocalizedError {
@@ -198,45 +314,13 @@ public enum ObsidianDailyNoteError: LocalizedError {
 }
 
 public enum ObsidianCLI {
-    public static func resolveOrCreateDailyNote(expectedURL: URL, date: Date) throws -> URL {
-        try resolveOrCreateDailyNote(expectedURL: expectedURL, date: date, executable: configuredExecutable())
-    }
-
-    static func resolveOrCreateDailyNote(expectedURL: URL, date: Date, executable: String) throws -> URL {
-        _ = date
-
-        let dailyNoteURL = try currentDailyNoteURL(executable: executable)
-        if FileManager.default.fileExists(atPath: dailyNoteURL.path) {
-            return dailyNoteURL
-        }
-
-        _ = try run(["daily"], executable: executable)
-
-        guard FileManager.default.fileExists(atPath: dailyNoteURL.path) else {
-            throw ObsidianDailyNoteError.notCreated(dailyNoteURL.path, relativeDailyPath(dailyNoteURL, fallback: expectedURL))
-        }
-
-        return dailyNoteURL
-    }
-
-    static func currentDailyNoteURL(executable: String = configuredExecutable()) throws -> URL {
-        let cliDailyPath = try run(["daily:path"], executable: executable)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cliDailyPath.isEmpty else {
-            throw ObsidianDailyNoteError.commandFailed("\(executable) daily:path", "empty daily note path")
-        }
-
-        if cliDailyPath.hasPrefix("/") {
-            return URL(fileURLWithPath: cliDailyPath)
-        }
-
-        let vaultPath = try run(["vault", "info=path"], executable: executable)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !vaultPath.isEmpty else {
-            throw ObsidianDailyNoteError.commandFailed("\(executable) vault info=path", "empty vault path")
-        }
-
-        return URL(fileURLWithPath: vaultPath, isDirectory: true).appendingPathComponent(cliDailyPath)
+    public static func create(path: String, content: String) throws {
+        _ = try run([
+            "create",
+            "path=\(path)",
+            "content=\(escapedContent(content))",
+            "open"
+        ])
     }
 
     static func run(_ arguments: [String], executable: String = configuredExecutable()) throws -> String {
@@ -267,12 +351,10 @@ public enum ObsidianCLI {
         ProcessInfo.processInfo.environment["QUICKSAVE_OBSIDIAN_CLI"] ?? "obsidian"
     }
 
-    private static func relativeDailyPath(_ url: URL, fallback: URL) -> String {
-        let path = url.path
-        let fallbackDirectory = fallback.deletingLastPathComponent().path + "/"
-        if path.hasPrefix(fallbackDirectory) {
-            return String(path.dropFirst(fallbackDirectory.count))
-        }
-        return path
+    private static func escapedContent(_ content: String) -> String {
+        content
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\t", with: "\\t")
     }
 }

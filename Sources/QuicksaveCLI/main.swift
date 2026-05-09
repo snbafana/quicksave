@@ -39,7 +39,7 @@ struct QuicksaveCLI {
             dailyNotesDirectory: options.dailyNotesDirectory,
             resolveDailyNote: options.usesDailyNotesDirectoryOverride
                 ? ObsidianDailyNotes.fileSystemDailyNoteResolver()
-                : ObsidianCLI.resolveOrCreateDailyNote
+                : nil
         )
 
         switch command {
