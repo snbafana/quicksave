@@ -3,15 +3,31 @@ import AppKit
 @MainActor
 final class NotePanel: NSObject, NSWindowDelegate, NSTextViewDelegate {
     private enum Layout {
-        static let panelSize = NSSize(width: 540, height: 154)
-        static let cornerRadius: CGFloat = 20
-        static let editorFrame = NSRect(x: 18, y: 16, width: 504, height: 122)
+        static let width: CGFloat = 420
+        static let minHeight: CGFloat = 56
+        static let maxHeight: CGFloat = 260
+        static let horizontalPadding: CGFloat = 18
+        static let verticalPadding: CGFloat = 11
+        static let growthBuffer: CGFloat = 18
+        static let cornerRadius: CGFloat = 18
+
+        static var panelSize: NSSize {
+            NSSize(width: width, height: minHeight)
+        }
+
+        static func editorFrame(for panelHeight: CGFloat) -> NSRect {
+            NSRect(
+                x: horizontalPadding,
+                y: verticalPadding,
+                width: width - horizontalPadding * 2,
+                height: panelHeight - verticalPadding * 2
+            )
+        }
     }
 
     private let onSave: (String) -> Void
     private let onCancel: () -> Void
     private let textView: MinimalNoteTextView
-    private let placeholder: NSTextField
     private let scrollView: NSScrollView
     private let window: NSPanel
 
@@ -22,9 +38,9 @@ final class NotePanel: NSObject, NSWindowDelegate, NSTextViewDelegate {
     init(onSave: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
         self.onSave = onSave
         self.onCancel = onCancel
-        textView = MinimalNoteTextView(frame: NSRect(origin: .zero, size: Layout.editorFrame.size))
-        placeholder = NSTextField(labelWithString: "Add context...")
-        scrollView = NSScrollView(frame: Layout.editorFrame)
+        let editorFrame = Layout.editorFrame(for: Layout.minHeight)
+        textView = MinimalNoteTextView(frame: NSRect(origin: .zero, size: editorFrame.size))
+        scrollView = NSScrollView(frame: editorFrame)
         window = KeyablePanel(
             contentRect: NSRect(origin: .zero, size: Layout.panelSize),
             styleMask: [.titled, .fullSizeContentView],
@@ -55,13 +71,14 @@ final class NotePanel: NSObject, NSWindowDelegate, NSTextViewDelegate {
     }
 
     func textDidChange(_ notification: Notification) {
-        placeholder.isHidden = !textView.string.isEmpty
+        textView.needsDisplay = true
+        resizeForContent()
     }
 
     private func configureEditor() {
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.documentView = textView
@@ -77,24 +94,19 @@ final class NotePanel: NSObject, NSWindowDelegate, NSTextViewDelegate {
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
-        textView.minSize = NSSize(width: Layout.editorFrame.width, height: Layout.editorFrame.height)
-        textView.maxSize = NSSize(width: Layout.editorFrame.width, height: CGFloat.greatestFiniteMagnitude)
-        textView.textContainer?.containerSize = NSSize(width: Layout.editorFrame.width, height: CGFloat.greatestFiniteMagnitude)
+        textView.minSize = scrollView.contentSize
+        textView.maxSize = NSSize(width: scrollView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
+        textView.textContainer?.containerSize = NSSize(width: scrollView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.lineFragmentPadding = 0
         textView.onSubmit = { [weak self] in self?.save() }
         textView.onCancel = { [weak self] in self?.cancel() }
-
-        placeholder.frame = NSRect(x: Layout.editorFrame.minX, y: Layout.editorFrame.maxY - 32, width: Layout.editorFrame.width, height: 22)
-        placeholder.font = .systemFont(ofSize: 16, weight: .regular)
-        placeholder.textColor = .placeholderTextColor
     }
 
     private func configureWindow() {
         window.delegate = self
         window.contentView = MinimalNoteView(
             scrollView: scrollView,
-            placeholder: placeholder,
             size: Layout.panelSize,
             cornerRadius: Layout.cornerRadius
         )
@@ -138,6 +150,43 @@ final class NotePanel: NSObject, NSWindowDelegate, NSTextViewDelegate {
         let origin = NSPoint(x: frame.midX - size.width / 2, y: frame.midY - size.height / 2)
         window.setFrameOrigin(origin)
     }
+
+    private func resizeForContent() {
+        guard let layoutManager = textView.layoutManager, let textContainer = textView.textContainer else {
+            return
+        }
+
+        layoutManager.ensureLayout(for: textContainer)
+        let textHeight = ceil(layoutManager.usedRect(for: textContainer).height + textView.textContainerInset.height * 2)
+        let targetHeight = min(
+            max(textHeight + Layout.verticalPadding * 2 + Layout.growthBuffer, Layout.minHeight),
+            Layout.maxHeight
+        )
+        guard abs(window.frame.height - targetHeight) > 0.5 else {
+            return
+        }
+
+        let previousFrame = window.frame
+        let nextFrame = NSRect(
+            x: previousFrame.minX,
+            y: previousFrame.maxY - targetHeight,
+            width: Layout.width,
+            height: targetHeight
+        )
+
+        window.setFrame(nextFrame, display: true, animate: false)
+        updateEditorLayout(panelHeight: targetHeight)
+    }
+
+    private func updateEditorLayout(panelHeight: CGFloat) {
+        let editorFrame = Layout.editorFrame(for: panelHeight)
+        scrollView.frame = editorFrame
+        textView.frame = NSRect(origin: .zero, size: editorFrame.size)
+        textView.minSize = editorFrame.size
+        textView.maxSize = NSSize(width: editorFrame.width, height: CGFloat.greatestFiniteMagnitude)
+        textView.textContainer?.containerSize = NSSize(width: editorFrame.width, height: CGFloat.greatestFiniteMagnitude)
+        scrollView.hasVerticalScroller = panelHeight >= Layout.maxHeight
+    }
 }
 
 private final class KeyablePanel: NSPanel {
@@ -153,6 +202,7 @@ private final class KeyablePanel: NSPanel {
 private final class MinimalNoteTextView: NSTextView {
     var onSubmit: (() -> Void)?
     var onCancel: (() -> Void)?
+    private let placeholder = "Add context..."
 
     override func keyDown(with event: NSEvent) {
         if (event.keyCode == 36 || event.keyCode == 76), event.modifierFlags.contains(.command) {
@@ -165,12 +215,33 @@ private final class MinimalNoteTextView: NSTextView {
         }
         super.keyDown(with: event)
     }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        guard string.isEmpty else {
+            return
+        }
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font ?? .systemFont(ofSize: 16, weight: .regular),
+            .foregroundColor: NSColor.placeholderTextColor
+        ]
+        let lineHeight = ceil((font ?? .systemFont(ofSize: 16, weight: .regular)).boundingRectForFont.height)
+        let y = isFlipped
+            ? textContainerInset.height
+            : bounds.height - textContainerInset.height - lineHeight
+        placeholder.draw(
+            at: NSPoint(x: textContainerInset.width, y: y),
+            withAttributes: attributes
+        )
+    }
 }
 
 private final class MinimalNoteView: NSView {
     private let effectView: NSVisualEffectView
 
-    init(scrollView: NSScrollView, placeholder: NSTextField, size: NSSize, cornerRadius: CGFloat) {
+    init(scrollView: NSScrollView, size: NSSize, cornerRadius: CGFloat) {
         effectView = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
         super.init(frame: NSRect(origin: .zero, size: size))
 
@@ -184,11 +255,11 @@ private final class MinimalNoteView: NSView {
         effectView.blendingMode = .behindWindow
         effectView.state = .active
         effectView.wantsLayer = true
+        effectView.autoresizingMask = [.width, .height]
         effectView.layer?.cornerRadius = cornerRadius
         effectView.layer?.masksToBounds = true
         addSubview(effectView)
         effectView.addSubview(scrollView)
-        effectView.addSubview(placeholder)
     }
 
     required init?(coder: NSCoder) {
